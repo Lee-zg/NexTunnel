@@ -17,6 +17,18 @@ jobs:
         with:
           go-version: '1.25.0'
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: desktop/frontend/package-lock.json
+
+      - name: Build desktop frontend for embedded assets
+        working-directory: desktop/frontend
+        run: |
+          npm ci
+          npm run build
+
       - name: golangci-lint (desktop)
         uses: golangci/golangci-lint-action@v6
         with:
@@ -37,7 +49,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: |
             desktop/frontend/package-lock.json
@@ -71,11 +83,17 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: |
             desktop/frontend/package-lock.json
             server/web/package-lock.json
+
+      - name: Build desktop frontend for embedded assets
+        working-directory: desktop/frontend
+        run: |
+          npm ci
+          npm run build
 
       - name: Build Go (server)
         working-directory: server
@@ -100,10 +118,6 @@ jobs:
       - name: Vet Go (pkg)
         working-directory: pkg
         run: go vet ./...
-
-      - name: Install desktop frontend deps
-        working-directory: desktop/frontend
-        run: npm ci
 
       - name: Build desktop frontend
         working-directory: desktop/frontend
@@ -145,6 +159,18 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25.0'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: desktop/frontend/package-lock.json
+
+      - name: Build desktop frontend for embedded assets
+        working-directory: desktop/frontend
+        run: |
+          npm ci
+          npm run build
 
       - name: Test desktop
         working-directory: desktop

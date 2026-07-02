@@ -230,6 +230,11 @@ jobs:
   docs:
     name: Documentation site
     runs-on: ubuntu-latest
+    needs:
+      - desktop-windows
+      - desktop-macos
+      - cli-packages
+      - server-packages
 
     steps:
       - name: Checkout
