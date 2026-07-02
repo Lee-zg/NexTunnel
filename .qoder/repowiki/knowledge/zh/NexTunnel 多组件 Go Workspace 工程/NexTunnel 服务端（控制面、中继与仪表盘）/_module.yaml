@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: server
+title: NexTunnel 服务端（控制面、中继与仪表盘）
+scope:
+    - server/
+source_files: []
+depends_on: []
+related_to: []

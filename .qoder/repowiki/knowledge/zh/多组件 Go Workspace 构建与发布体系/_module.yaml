@@ -1,0 +1,16 @@
+schema_version: 1
+module_path: build_system
+title: 多组件 Go Workspace 构建与发布体系
+scope: []
+source_files:
+    - go.work
+    - Makefile
+    - .github/workflows/ci.yml
+    - .github/workflows/release.yml
+    - scripts/package-desktop.ps1
+    - scripts/package-cli.ps1
+    - scripts/package-server.ps1
+    - scripts/package-macos.sh
+    - deploy/server/install.sh
+depends_on: []
+related_to: []

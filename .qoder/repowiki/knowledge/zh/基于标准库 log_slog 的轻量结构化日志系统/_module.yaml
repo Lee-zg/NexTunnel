@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: logging_system
+title: 基于标准库 log/slog 的轻量结构化日志系统
+scope: []
+source_files:
+    - desktop/app.go
+depends_on: []
+related_to: []

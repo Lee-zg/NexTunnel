@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: frontend_style
+title: NexTunnel 前端样式体系：Naive UI + CSS 变量主题系统
+scope: []
+source_files:
+    - desktop/frontend/src/App.vue
+    - installer/frontend/src/styles.css
+    - desktop/frontend/package.json
+    - installer/frontend/package.json
+    - desktop/frontend/src/views/StatusView.vue
+    - desktop/frontend/src/views/SettingsView.vue
+depends_on: []
+related_to: []

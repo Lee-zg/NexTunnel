@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: desktop_app
+title: NexTunnel 桌面客户端（Wails + Go）
+scope:
+    - desktop/
+source_files: []
+depends_on: []
+related_to: []

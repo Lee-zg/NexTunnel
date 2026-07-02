@@ -1,9 +1,0 @@
-schema_version: 1
-module_path: server
-title: NexTunnel 服务端核心组件
-scope:
-    - server/
-source_files: []
-depends_on: []
-related_to:
-    - path: desktop_app

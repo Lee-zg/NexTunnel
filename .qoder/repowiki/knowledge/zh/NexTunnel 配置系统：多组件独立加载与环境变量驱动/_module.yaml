@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: configuration_system
+title: NexTunnel 配置系统：多组件独立加载与环境变量驱动
+scope: []
+source_files:
+    - cli/internal/command/config.go
+    - cli/internal/system/paths.go
+    - cli/internal/system/process.go
+    - cli/internal/envfile/envfile_test.go
+    - deploy/server/.env.example
+    - docker-compose.yml
+depends_on: []
+related_to: []

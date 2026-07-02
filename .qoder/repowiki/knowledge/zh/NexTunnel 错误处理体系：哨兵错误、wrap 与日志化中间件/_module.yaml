@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: error_handling
+title: NexTunnel 错误处理体系：哨兵错误、wrap 与日志化中间件
+scope: []
+source_files:
+    - pkg/protocol/errors.go
+    - desktop/internal/auth/token.go
+    - server/internal/dashboard/auth.go
+    - cli/internal/api/client.go
+    - cli/internal/configstore/store.go
+    - desktop/app.go
+depends_on: []
+related_to: []

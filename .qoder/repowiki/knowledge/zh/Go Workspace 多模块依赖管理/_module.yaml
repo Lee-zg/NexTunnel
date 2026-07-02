@@ -1,0 +1,15 @@
+schema_version: 1
+module_path: dependency_management
+title: Go Workspace 多模块依赖管理
+scope: []
+source_files:
+    - go.work
+    - go.work.sum
+    - cli/go.mod
+    - desktop/go.mod
+    - installer/go.mod
+    - pkg/go.mod
+    - server/go.mod
+    - Makefile
+depends_on: []
+related_to: []

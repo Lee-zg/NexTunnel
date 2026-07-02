@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: installer
+title: NexTunnel Windows 安装器（Wails GUI + 无头 CLI）
+scope:
+    - installer/
+source_files: []
+depends_on: []
+related_to: []
