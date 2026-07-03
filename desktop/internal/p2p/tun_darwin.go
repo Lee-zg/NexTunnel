@@ -134,7 +134,7 @@ func (t *kernelTUN) WritePacket(buf []byte) (int, error) {
 		return 0, fmt.Errorf("write packet buffer is empty")
 	}
 	version := buf[0] >> 4
-	family := uint32(syscall.AF_INET)
+	var family uint32
 	if version == 4 {
 		family = syscall.AF_INET
 	} else if version == 6 {

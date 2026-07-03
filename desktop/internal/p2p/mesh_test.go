@@ -57,13 +57,13 @@ func TestMeshRouter_JoinAndPeerList(t *testing.T) {
 
 	ctrl := newMockMeshControl()
 	mesh := NewMeshRouter(MeshConfig{
-		ClientID:      "node-A",
-		Control:       ctrl,
-		Engine:        engine,
-		PingInterval:  1 * time.Second,
-		PeerTimeout:   5 * time.Second,
-		MaxPeers:      10,
-		Logger:        logger,
+		ClientID:     "node-A",
+		Control:      ctrl,
+		Engine:       engine,
+		PingInterval: 1 * time.Second,
+		PeerTimeout:  5 * time.Second,
+		MaxPeers:     10,
+		Logger:       logger,
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -180,8 +180,8 @@ func TestMeshRouter_RouteManagement(t *testing.T) {
 	if route != nil {
 		t.Error("route should be removed")
 	}
-	if mockTransport.closed {
-		// Transport should have been closed
+	if !mockTransport.closed {
+		t.Error("transport should have been closed")
 	}
 }
 
@@ -357,5 +357,9 @@ func (m *mockTransport) Close() error {
 	return nil
 }
 
-func (m *mockTransport) LocalAddr() net.Addr  { return &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1000} }
-func (m *mockTransport) RemoteAddr() net.Addr { return &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 2000} }
+func (m *mockTransport) LocalAddr() net.Addr {
+	return &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1000}
+}
+func (m *mockTransport) RemoteAddr() net.Addr {
+	return &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 2000}
+}

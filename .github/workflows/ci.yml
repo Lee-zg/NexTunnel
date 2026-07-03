@@ -29,17 +29,16 @@ jobs:
           npm ci
           npm run build
 
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
+
       - name: golangci-lint (desktop)
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          working-directory: desktop
+        working-directory: desktop
+        run: $(go env GOPATH)/bin/golangci-lint run --config ../.golangci.yml
 
       - name: golangci-lint (server)
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          working-directory: server
+        working-directory: server
+        run: $(go env GOPATH)/bin/golangci-lint run --config ../.golangci.yml
 
   lint-frontend:
     name: Lint Frontend

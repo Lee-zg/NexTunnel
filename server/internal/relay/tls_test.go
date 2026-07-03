@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -78,7 +79,7 @@ func TestServer_RunWithTLS(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.BindAddr = "127.0.0.1"
 	cfg.ControlPort = 0 // random port
-	cfg.QUICPort = 0     // disable QUIC for this test
+	cfg.QUICPort = 0    // disable QUIC for this test
 	cfg.AuthToken = "test-token"
 	cfg.TLSEnabled = true
 	cfg.TLS = tlsutil.TLSConfig{CACert: caPath, Cert: certPath, Key: keyPath}
@@ -89,7 +90,7 @@ func TestServer_RunWithTLS(t *testing.T) {
 	if err := srv.Run(); err != nil {
 		t.Fatalf("Run with TLS: %v", err)
 	}
-	defer srv.Shutdown(nil)
+	defer srv.Shutdown(context.Background())
 
 	addr := srv.Addr()
 	if addr == nil {
@@ -110,7 +111,7 @@ func TestServer_RunWithoutTLS(t *testing.T) {
 	if err := srv.Run(); err != nil {
 		t.Fatalf("Run without TLS: %v", err)
 	}
-	defer srv.Shutdown(nil)
+	defer srv.Shutdown(context.Background())
 
 	addr := srv.Addr()
 	if addr == nil {
