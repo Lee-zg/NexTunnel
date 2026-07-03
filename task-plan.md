@@ -1,8 +1,8 @@
 # NexTunnel 项目规划文档
 
-## 0. v0.6.3-alpha 发布更新状态（2026-07-02）
+## 0. v0.6.4-alpha 发布更新状态（2026-07-02）
 
-当前代码开发按 v0.6.3-alpha 口径发布更新：Relay Admin API、Dashboard 客户端监控、运行配置状态、审计查询、桌面服务端实例检测、明亮主题 logo 兼容和部署脚本变量继续作为验收路径。剩余事项不再是继续堆功能，而是把真实生产依赖拆成可验证、可回收、可后续迭代的外部条件：域名/证书、Windows 驱动 DLL、macOS 授权 helper、eBPF 压测窗口和真实多地域资源。
+当前代码开发按 v0.6.4-alpha 口径发布更新：macOS System TUN LaunchDaemon helper 已完成代码接入，Relay Admin API、Dashboard 客户端监控、运行配置状态、审计查询、桌面服务端实例检测、明亮主题 logo 兼容和部署脚本变量继续作为验收路径。剩余事项不再是继续堆功能，而是把真实生产依赖拆成可验证、可回收、可后续迭代的外部条件：域名/证书、Windows 驱动 DLL 实机验收、macOS signed/notarized pkg 实机验收、eBPF 压测窗口和真实多地域资源。
 
 ### 0.1 当前结论
 
@@ -11,8 +11,8 @@
 | Dashboard API | ✅ 已通过 | 服务器二通过 SSH 隧道完成健康检查、登录、401、CORS、节点、统计、ACL、告警和静态入口验证，报告位于 `dist/verification/dashboard-server2-ssh-script-report.json`。 |
 | Dashboard HTTPS | ⚠️ 外部阻塞 | `lee97.top` 证书过期且 DNSPod webblock 阻断 HTTP-01；`*.sslip.io` 在服务器二公网侧被 ICP 拦截。生产验收需备案/可用域名和有效证书。 |
 | Windows/macOS P2P | ✅ 直连已验证 | 局域网双端候选交换和直连链路已通过；真实系统 TUN 仍依赖平台驱动和授权。 |
-| Windows 真实 TUN | ⚠️ 环境阻塞 | 当前环境缺少匹配架构官方 `wintun.dll`；已补齐打包注入、架构校验和预检提示。 |
-| macOS 真实 TUN | ⚠️ 权限阻塞 | 非 sudo/root 创建 utun 会失败；生产建议使用授权 helper 或 LaunchDaemon，验证环境可用 `sudo -n`。 |
+| Windows 真实 TUN | ⚠️ 实机验收待补 | 打包链路已支持随包注入官方、匹配架构 `wintun.dll` 并做架构校验；生产通过前仍需 Windows 实机管理员权限创建设备、注入路由和清理验证报告。 |
+| macOS 真实 TUN | ⚠️ helper 已实现，实机验收待补 | `nextunnel-helper` LaunchDaemon 已接入桌面端、预检、验证器和 pkg 打包；生产通过前仍需 Developer ID 签名/公证、pkg 安装、utun 创建、路由应用/清理和 `tun-macos-latest.json`。 |
 | Linux eBPF XDP | ✅ 功能验收通过 | 服务器二 `eth0`/`skb` 模式完成 BPF 编译、XDP 挂载、规则同步、统计读取和卸载；吞吐/延迟基准仍需隔离窗口。 |
 | Edge/Anycast | ✅ 演练通过 | 本地 3 区域和服务器二真实 Control Plane 注册/心跳/清理通过；商用生产仍需真实多地域节点压测。 |
 
@@ -21,12 +21,12 @@
 | 阻塞项 | 已执行方案 | 后续边界 |
 |:---|:---|:---|
 | 无可用公网 HTTPS 域名 | `scripts/verify-dashboard.ps1` 默认拒绝向非本机 HTTP 发送管理员密码；新增 `scripts/verify-dashboard-ssh.ps1` 通过 SSH 本地端口转发读取远端配置并完成 API 验证。 | HTTPS 最终验收仍必须在备案/可用域名和有效证书下复验。 |
-| Windows 缺少 `wintun.dll` | `scripts/package-desktop.ps1` 支持 `NEXTUNNEL_WINTUN_DLL`/`-WintunDllPath` 自动复制官方 DLL，并校验 PE 架构。 | 当前 v0.6.3-alpha 桌面包未随包携带 DLL 时不声明真实 TUN 生产可用。 |
-| macOS 无免密提权 | `scripts/verify-p2p-tun.ps1` 增加 `-MacUseSudo` 与 `mac_sudo_not_requested` 提示，失败时给出 helper/LaunchDaemon/sudo -n 方案。 | 应用端如需免交互生产使用，后续迭代实现 macOS 授权 helper。 |
+| Windows 缺少 `wintun.dll` | `scripts/package-desktop.ps1` 支持 `NEXTUNNEL_WINTUN_DLL`/`-WintunDllPath` 自动复制官方 DLL，并校验 PE 架构。 | 未随包携带 DLL 或未完成管理员权限实机验证时，不声明 Windows 真实 TUN 生产可用。 |
+| macOS 无免密提权 | 新增 `nextunnel-helper` LaunchDaemon、受控 Unix socket 协议、fd passing 创建 utun、helper-backed route applier、pkg 打包和 `-MacUseHelper` 验证参数。 | 只有 signed/notarized pkg 安装且 `tun-macos-latest.json` 验收通过后，才能声明 macOS System TUN 真实环境功能验收通过。 |
 | 真实 TUN 前置条件不清晰 | `desktop/internal/p2p` 预检新增 `EnvironmentHints`，向前端输出 Windows/macOS/Linux 的生产修复建议。 | 后续应用端可把这些提示接入更细的安装向导。 |
 | 发布包遗漏验证入口 | 服务端打包清单加入 `scripts/verify-dashboard-ssh.ps1`，Release 文档同步 SSH 隧道验证流程。 | 发布前必须确认新增脚本已纳入 Git 跟踪。 |
 
-### 0.3 v0.6.3-alpha 发布验收口径
+### 0.3 v0.6.4-alpha 发布验收口径
 
 | 优先级 | 任务 | 验收状态 |
 |:---:|:---|:---|
@@ -35,14 +35,14 @@
 | P1 | Dashboard 端到端部署联调 | ✅ API 通过；⚠️ HTTPS 受外部域名/证书阻塞，已提供 SSH 安全验证替代路径。 |
 | P1 | eBPF Linux 生产验证 | ✅ 真实网卡功能验收通过；⚠️ 性能压力基准待隔离窗口补充。 |
 | P1 | 多地域边缘部署演练 | ✅ 本地和服务器二远端 Control Plane 演练通过；⚠️ 商用多地域压测待资源准备。 |
-| P2 | P2P/TUN 生产化 | ✅ 直连链路、IPAM、路由下发和预检已实现；⚠️ 真实 OS TUN 需补齐 Wintun/macOS helper 后复验。 |
+| P2 | P2P/TUN 生产化 | ✅ 直连链路、IPAM、路由下发、Windows Wintun 打包链路和 macOS helper 链路已实现；⚠️ 真实 OS TUN 仍需 Windows/macOS 实机验收报告。 |
 
 ### 0.4 后续迭代候选
 
 | 优先级 | 方向 | 说明 |
 |:---:|:---|:---|
 | P1 | Dashboard HTTPS 复验 | 更换备案/可访问域名，配置 Nginx/OpenResty HTTPS 反代、CORS 白名单和证书续期后重跑 Dashboard 验证。 |
-| P1 | 桌面 TUN 安装体验 | Windows 安装器随附官方 `wintun.dll`；macOS 实现授权 helper 或 LaunchDaemon，避免依赖交互式 sudo。 |
+| P1 | 桌面 TUN 安装体验 | Windows 安装器随附官方 `wintun.dll`；macOS 通过 signed/notarized pkg 安装 LaunchDaemon helper，补齐升级/卸载与实机报告。 |
 | P1 | eBPF 压测 | 在隔离 Linux 节点记录用户态和 XDP 模式吞吐、延迟、CPU、统计读取和卸载清理数据。 |
 | P2 | 多地域生产拓扑 | 接入真实多地域节点、GeoIP 数据源和观测指标，补充故障切换与路由偏移报告。 |
 | P2 | 应用端提示迭代 | 将 `EnvironmentHints` 显示为更清晰的安装/修复向导，并保留 P2P-only/Relay-only 可用路径。 |

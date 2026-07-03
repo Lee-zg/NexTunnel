@@ -19,10 +19,11 @@ export default {
       { text: '服务端', link: '/deploy/server' },
       { text: 'Dashboard', link: '/dashboard/operations' },
       {
-        text: 'v0.6.2-alpha',
+        text: 'v0.6.4-alpha',
         items: [
           { text: '架构说明', link: '/guide/architecture' },
           { text: '发布流程', link: '/deploy/release' },
+          { text: '发布说明', link: '/deploy/release-notes-v0.6.4-alpha' },
           { text: '生产验证', link: '/deploy/production-verification' },
           { text: 'FAQ', link: '/faq' },
           { text: 'GitHub', link: 'https://github.com/Lee-zg/NexTunnel' },
@@ -65,6 +66,7 @@ export default {
           items: [
             { text: '服务端部署', link: '/deploy/server' },
             { text: '发布流程', link: '/deploy/release' },
+            { text: 'v0.6.4-alpha 发布说明', link: '/deploy/release-notes-v0.6.4-alpha' },
             { text: '生产验证', link: '/deploy/production-verification' },
           ],
         },

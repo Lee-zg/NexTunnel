@@ -59,6 +59,42 @@ func testConfig() Config {
 	}
 }
 
+type fakePrivilegedApplier struct {
+	applyState State
+	applyErr   error
+	resetState State
+	resetErr   error
+	applied    []Config
+	reset      []State
+}
+
+func (a *fakePrivilegedApplier) ApplyVirtualNetwork(cfg Config) (State, error) {
+	a.applied = append(a.applied, cfg)
+	if a.applyErr != nil {
+		return State{}, a.applyErr
+	}
+	if a.applyState.Interface == "" {
+		state := stateFromConfig(cfg)
+		state.Applied = true
+		state.LastCommands = []string{"helper apply"}
+		return state, nil
+	}
+	return a.applyState, nil
+}
+
+func (a *fakePrivilegedApplier) ResetVirtualNetwork(state State) (State, error) {
+	a.reset = append(a.reset, state)
+	if a.resetErr != nil {
+		return state, a.resetErr
+	}
+	if a.resetState.Interface == "" {
+		state.Applied = false
+		state.LastCommands = []string{"helper reset"}
+		return state, nil
+	}
+	return a.resetState, nil
+}
+
 func TestManager_ApplyAndReset(t *testing.T) {
 	runner := &recordingRunner{}
 	manager := NewManager(runner, nil)
@@ -83,6 +119,31 @@ func TestManager_ApplyAndReset(t *testing.T) {
 	}
 	if state.Applied {
 		t.Fatal("expected virtual network to be reset")
+	}
+}
+
+func TestManager_DelegatesToPrivilegedApplier(t *testing.T) {
+	runner := &recordingRunner{}
+	applier := &fakePrivilegedApplier{}
+	manager := NewManagerWithPrivilegedApplier(runner, nil, applier)
+
+	state, err := manager.Apply(testConfig())
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if !state.Applied || len(applier.applied) != 1 {
+		t.Fatalf("expected privileged apply, state=%+v calls=%d", state, len(applier.applied))
+	}
+	if len(runner.commands) != 0 {
+		t.Fatalf("privileged apply must not run local commands: %v", runner.commands)
+	}
+
+	state, err = manager.Reset()
+	if err != nil {
+		t.Fatalf("Reset: %v", err)
+	}
+	if state.Applied || len(applier.reset) != 1 {
+		t.Fatalf("expected privileged reset, state=%+v calls=%d", state, len(applier.reset))
 	}
 }
 

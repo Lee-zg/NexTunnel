@@ -2,7 +2,7 @@
 
 NexTunnel 是一套开源内网穿透、P2P 直连优先和可视化运维工具。它提供桌面客户端、统一 CLI、Relay 中继、Control Plane、Dashboard、NAT/STUN 探测和生产验证脚本，适合把本地开发服务、内网 Web、数据库管理入口或自部署节点安全地暴露给受控访问方。
 
-当前版本：`v0.6.3-alpha`
+当前版本：`v0.6.4-alpha`
 
 > 设计目标：像 FRP/NPS 一样快速完成内网服务暴露，同时提供更明确的桌面体验、服务端可观测性、P2P/TUN 诊断和发布前生产验收路径。
 
@@ -29,7 +29,7 @@ NexTunnel 是一套开源内网穿透、P2P 直连优先和可视化运维工具
 | Dashboard | 已支持登录、RBAC、节点、客户端、流量、ACL、告警、审计和配置状态 |
 | 桌面端 | 已支持 Relay 连接、TCP/HTTP 隧道、本机端口扫描、运行日志、设置导入导出 |
 | P2P/NAT | 已支持 STUN/NAT 探测、P2P 状态展示和验证工具链 |
-| 系统 TUN | Windows 依赖 Wintun 和管理员权限；macOS 系统路由 TUN 在 beta 中按预览能力处理 |
+| 系统 TUN | Windows 随包 Wintun；macOS 通过 signed/notarized pkg 安装 LaunchDaemon helper 后启用 System TUN |
 | 生产验证 | 已提供 Dashboard、SSH 隧道、P2P/TUN、Edge/Anycast、eBPF Linux 验证脚本 |
 
 ## 架构概览
@@ -69,7 +69,7 @@ flowchart LR
 | --- | --- |
 | 桌面端运行 | Windows 10/11、macOS 或 Linux 桌面环境 |
 | Windows TUN | 官方匹配架构 `wintun.dll`，首次创建适配器需要管理员权限 |
-| macOS TUN | beta 中需要 root/sudo 或后续授权 helper；普通用户可使用 Relay/P2P 能力 |
+| macOS TUN | DMG 仅提供 Relay/P2P；System TUN 需要安装 signed/notarized pkg，加载 `com.nextunnel.helper` LaunchDaemon |
 | 服务端二进制部署 | Linux amd64/arm64 或 Windows amd64 |
 | 本地开发 | Go `1.25.0`、Node.js `>=18`、Wails v2、PowerShell 或 GNU Make |
 | 容器部署 | Docker / Docker Compose |
@@ -80,11 +80,11 @@ flowchart LR
 
 ```bash
 curl -fL -o /tmp/nextunnel-install.sh \
-  https://github.com/Lee-zg/NexTunnel/releases/download/v0.6.3-alpha/install.sh
+  https://github.com/Lee-zg/NexTunnel/releases/download/v0.6.4-alpha/install.sh
 chmod +x /tmp/nextunnel-install.sh
 
 sudo /tmp/nextunnel-install.sh install \
-  --version v0.6.3-alpha \
+  --version v0.6.4-alpha \
   --public-host example.com \
   --relay-token <strong-relay-token> \
   --control-token <strong-control-token> \
@@ -116,11 +116,11 @@ sudo /opt/nextunnel/deploy/server/install.sh logs --no-log-follow --log-lines 80
 
 ```powershell
 Invoke-WebRequest `
-  -Uri "https://github.com/Lee-zg/NexTunnel/releases/download/v0.6.3-alpha/install.ps1" `
+  -Uri "https://github.com/Lee-zg/NexTunnel/releases/download/v0.6.4-alpha/install.ps1" `
   -OutFile ".\install.ps1"
 
 .\install.ps1 -Action install `
-  -Version v0.6.3-alpha `
+  -Version v0.6.4-alpha `
   -PublicHost "example.com" `
   -RelayToken "<strong-relay-token>" `
   -ControlToken "<strong-control-token>" `
@@ -135,7 +135,7 @@ Invoke-WebRequest `
 .\install.ps1 -Action health
 .\install.ps1 -Action logs
 .\install.ps1 -Action restart
-.\install.ps1 -Action update -Version v0.6.3-alpha
+.\install.ps1 -Action update -Version v0.6.4-alpha
 ```
 
 ### 3. Docker Compose 试用
@@ -219,7 +219,7 @@ nextunnel desktop network apply
 `deploy/server/.env` 最小生产配置示例：
 
 ```dotenv
-NEXTUNNEL_VERSION=v0.6.3-alpha
+NEXTUNNEL_VERSION=v0.6.4-alpha
 NEXTUNNEL_PUBLIC_HOST=example.com
 
 RELAY_BIND=0.0.0.0
@@ -352,10 +352,11 @@ Windows PowerShell：
 | --- | --- | --- |
 | 查看帮助 | `make help` | `.\make.ps1 help` |
 | Go 测试 | `make test-go` | `.\make.ps1 test-go` |
+| 验证脚本静态校验 | `make verify-scripts-static` | `.\make.ps1 verify-scripts-static` |
 | 桌面构建 | `make build` | `.\make.ps1 build` |
 | 服务端构建 | `make build-server` | `.\make.ps1 build-server` |
-| CLI 打包 | `make package-cli VERSION=v0.6.3-alpha` | `.\scripts\package-cli.ps1 -Version v0.6.3-alpha` |
-| 服务端打包 | `make package-server VERSION=v0.6.3-alpha` | `.\scripts\package-server.ps1 -Version v0.6.3-alpha` |
+| CLI 打包 | `make package-cli VERSION=v0.6.4-alpha` | `.\scripts\package-cli.ps1 -Version v0.6.4-alpha` |
+| 服务端打包 | `make package-server VERSION=v0.6.4-alpha` | `.\scripts\package-server.ps1 -Version v0.6.4-alpha` |
 | 文档构建 | `cd docs && npm run docs:build` | `cd docs; npm run docs:build` |
 
 ## 生产验证
@@ -363,6 +364,7 @@ Windows PowerShell：
 验证脚本会生成 JSON 报告到 `dist/verification/`。真实 TUN、eBPF 和路由验证会修改系统网络状态，只能在授权的实机或隔离节点执行。
 
 ```bash
+make verify-scripts-static
 make verify-edge
 make verify-tun
 make verify-p2p-tun MAC_HOST=mac.example.com MAC_USER=<ssh-user>
@@ -372,6 +374,8 @@ sudo INTERFACE_NAME=eth0 make verify-ebpf-linux
 ```
 
 详见 [生产验证手册](docs/deploy/production-verification.md)。
+
+发布说明必须区分“开发完成”“本地测试通过”“真实环境功能验收通过”“生产压测通过”和“外部阻塞”。没有 `dist/verification/` JSON 报告的能力，不应声明为生产通过。
 
 ## FAQ
 
@@ -394,7 +398,7 @@ Windows 的 `netsh` 在目标接口不存在或接口名未被识别时可能返
 
 ```bash
 sudo ./install.sh install \
-  --release-base-url https://cos.example.com/nextunnel/v0.6.3-alpha \
+  --release-base-url https://cos.example.com/nextunnel/v0.6.4-alpha \
   --sha256 <sha256>
 ```
 
@@ -402,7 +406,7 @@ sudo ./install.sh install \
 
 ### macOS 系统 TUN 当前是什么状态？
 
-v0.6.3-alpha 中 macOS P2P/Relay 能力可用，系统路由 TUN 仍需要 root/sudo、授权 helper 或 LaunchDaemon。没有这些外部条件时，不应把 macOS 系统 TUN 宣称为生产可用。
+v0.6.4-alpha 中 macOS P2P/Relay 能力可通过 DMG 使用；系统路由 TUN 需要安装 signed/notarized pkg，由 `com.nextunnel.helper` LaunchDaemon 创建 utun 并注入路由。没有 `dist/verification/tun-macos-latest.json` 真实报告前，不应把 macOS 系统 TUN 宣称为生产通过。
 
 更多问题见 [FAQ](docs/faq.md)。
 

@@ -33,6 +33,7 @@ type tunPreflightInput struct {
 	needsPrivilege    bool
 	privileged        bool
 	wintun            wintunPreflightResult
+	macosHelper       macOSHelperPreflightResult
 	linuxTunAvailable bool
 }
 
@@ -44,6 +45,15 @@ type wintunPreflightResult struct {
 	detail         string
 }
 
+type macOSHelperPreflightResult struct {
+	required  bool
+	found     bool
+	reachable bool
+	ready     bool
+	version   string
+	detail    string
+}
+
 // CurrentPlatform returns the capabilities of the current platform.
 func CurrentPlatform() PlatformCapabilities {
 	input := tunPreflightInput{
@@ -53,6 +63,7 @@ func CurrentPlatform() PlatformCapabilities {
 		needsPrivilege:    platformNeedsPrivilege(runtime.GOOS),
 		privileged:        isProcessPrivileged(),
 		wintun:            detectWintunPreflight(),
+		macosHelper:       detectMacOSHelperPreflight(),
 		linuxTunAvailable: linuxTunDeviceAvailable(),
 	}
 	return evaluatePlatformCapabilities(input)
@@ -62,7 +73,7 @@ func evaluatePlatformCapabilities(input tunPreflightInput) PlatformCapabilities 
 	caps := PlatformCapabilities{
 		HasKernelTUN:         input.hasKernelSupport,
 		HasUserspaceNetstack: input.hasUserspaceStack,
-		NeedsAdminPrivilege:  input.needsPrivilege && !input.privileged,
+		NeedsAdminPrivilege:  input.needsPrivilege && !input.privileged && !(input.platformName == "darwin" && input.macosHelper.ready),
 		PlatformName:         input.platformName,
 		UserspaceModeAllowed: input.hasUserspaceStack,
 		BlockingIssues:       make([]PlatformIssue, 0, 3),
@@ -80,7 +91,8 @@ func evaluatePlatformCapabilities(input tunPreflightInput) PlatformCapabilities 
 		})
 	}
 
-	if input.needsPrivilege && !input.privileged {
+	helperSatisfiesPrivilege := input.platformName == "darwin" && input.macosHelper.ready
+	if input.needsPrivilege && !input.privileged && !helperSatisfiesPrivilege {
 		caps.BlockingIssues = append(caps.BlockingIssues, PlatformIssue{
 			Code:     "privilege_required",
 			Severity: IssueSeverityBlocker,
@@ -91,6 +103,9 @@ func evaluatePlatformCapabilities(input tunPreflightInput) PlatformCapabilities 
 
 	if input.platformName == "windows" {
 		addWindowsWintunIssues(&caps, input.wintun)
+	}
+	if input.platformName == "darwin" && !input.privileged {
+		addDarwinHelperIssues(&caps, input.macosHelper)
 	}
 	if input.platformName == "linux" && !input.linuxTunAvailable {
 		caps.BlockingIssues = append(caps.BlockingIssues, PlatformIssue{
@@ -154,7 +169,7 @@ func platformEnvironmentHints(goos string) []string {
 		}
 	case "darwin":
 		return []string{
-			"生产环境使用授权 helper 或 LaunchDaemon 创建 utun 并注入路由；验证环境可配置 sudo -n 免密执行。",
+			"生产环境安装 signed/notarized pkg，由 LaunchDaemon helper 创建 utun 并注入路由；验证环境可配置 sudo -n 免密执行。",
 			"没有授权 helper 时只启用 P2P/Relay 转发，不声明系统路由 TUN 可用。",
 		}
 	case "linux":
@@ -167,6 +182,45 @@ func platformEnvironmentHints(goos string) []string {
 			"该平台不支持真实系统 TUN；只能使用 P2P-only 或 Relay-only 能力。",
 		}
 	}
+}
+
+func addDarwinHelperIssues(caps *PlatformCapabilities, helper macOSHelperPreflightResult) {
+	if !helper.required {
+		return
+	}
+	if helper.ready {
+		caps.DegradedFeatures = append(caps.DegradedFeatures, PlatformIssue{
+			Code:     "macos_helper_ready",
+			Severity: IssueSeverityInfo,
+			Message:  "macOS LaunchDaemon helper 已就绪。",
+			Action:   helper.detail,
+		})
+		return
+	}
+	if !helper.found {
+		caps.BlockingIssues = append(caps.BlockingIssues, PlatformIssue{
+			Code:     "macos_helper_missing",
+			Severity: IssueSeverityBlocker,
+			Message:  "未找到 macOS LaunchDaemon helper socket。",
+			Action:   "安装 signed/notarized pkg，确保 /Library/PrivilegedHelperTools/nextunnel-helper 和 com.nextunnel.helper LaunchDaemon 已加载。",
+		})
+		return
+	}
+	if !helper.reachable {
+		caps.BlockingIssues = append(caps.BlockingIssues, PlatformIssue{
+			Code:     "macos_helper_unreachable",
+			Severity: IssueSeverityBlocker,
+			Message:  "macOS LaunchDaemon helper 不可达。",
+			Action:   "检查 /var/run/nextunnel/helper.sock 权限、launchctl print system/com.nextunnel.helper 状态和系统日志。",
+		})
+		return
+	}
+	caps.BlockingIssues = append(caps.BlockingIssues, PlatformIssue{
+		Code:     "macos_helper_protocol_mismatch",
+		Severity: IssueSeverityBlocker,
+		Message:  "macOS LaunchDaemon helper 协议或版本不匹配。",
+		Action:   "升级 NexTunnel pkg 后重新加载 com.nextunnel.helper。",
+	})
 }
 
 func addWindowsWintunIssues(caps *PlatformCapabilities, wintun wintunPreflightResult) {

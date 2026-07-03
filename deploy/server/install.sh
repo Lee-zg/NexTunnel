@@ -108,7 +108,7 @@ usage() {
 常用选项：
   --package-url URL        指定服务端 Release 包地址，支持 https://、file:// 或本地文件路径
   --sha256 HASH            可选，校验服务端 Release 包 SHA256
-  --version VERSION        指定 GitHub Release 版本，例如 v0.6.3-alpha；默认 latest
+  --version VERSION        指定 GitHub Release 版本，例如 v0.6.4-alpha；默认 latest
   --release-base-url URL   指定 Release 下载基址；默认使用 GitHub Releases
   --github-proxy URL       可选，仅代理脚本自动生成的 GitHub 下载地址；生产环境建议使用可信自建代理
   --arch ARCH              指定架构 amd64/arm64；默认自动识别

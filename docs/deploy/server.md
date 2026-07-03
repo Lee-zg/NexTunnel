@@ -17,7 +17,7 @@
 
 ```bash
 curl -fL -o /tmp/nextunnel-install.sh \
-  https://github.com/Lee-zg/NexTunnel/releases/download/v0.6.3-alpha/install.sh
+  https://github.com/Lee-zg/NexTunnel/releases/download/v0.6.4-alpha/install.sh
 chmod +x /tmp/nextunnel-install.sh
 ```
 
@@ -25,7 +25,7 @@ chmod +x /tmp/nextunnel-install.sh
 
 ```bash
 sudo /tmp/nextunnel-install.sh install \
-  --version v0.6.3-alpha \
+  --version v0.6.4-alpha \
   --public-host example.com \
   --relay-token <strong-relay-token> \
   --control-token <strong-control-token> \
@@ -49,7 +49,7 @@ sudo /opt/nextunnel/deploy/server/install.sh status
 sudo /opt/nextunnel/deploy/server/install.sh health
 sudo /opt/nextunnel/deploy/server/install.sh logs --no-log-follow --log-lines 80
 sudo /opt/nextunnel/deploy/server/install.sh restart
-sudo /opt/nextunnel/deploy/server/install.sh update --version v0.6.3-alpha
+sudo /opt/nextunnel/deploy/server/install.sh update --version v0.6.4-alpha
 sudo /opt/nextunnel/deploy/server/install.sh down
 sudo /opt/nextunnel/deploy/server/install.sh uninstall
 sudo /opt/nextunnel/deploy/server/install.sh uninstall --purge
@@ -70,11 +70,11 @@ sudo /opt/nextunnel/deploy/server/install.sh uninstall --purge
 
 ```powershell
 Invoke-WebRequest `
-  -Uri "https://github.com/Lee-zg/NexTunnel/releases/download/v0.6.3-alpha/install.ps1" `
+  -Uri "https://github.com/Lee-zg/NexTunnel/releases/download/v0.6.4-alpha/install.ps1" `
   -OutFile ".\install.ps1"
 
 .\install.ps1 -Action install `
-  -Version v0.6.3-alpha `
+  -Version v0.6.4-alpha `
   -PublicHost "example.com" `
   -RelayToken "<strong-relay-token>" `
   -ControlToken "<strong-control-token>" `
@@ -114,7 +114,7 @@ Invoke-WebRequest `
 最小生产示例：
 
 ```dotenv
-NEXTUNNEL_VERSION=v0.6.3-alpha
+NEXTUNNEL_VERSION=v0.6.4-alpha
 NEXTUNNEL_PUBLIC_HOST=example.com
 
 RELAY_CONTROL_PORT=7000
@@ -221,8 +221,8 @@ relay \
 
 ```bash
 sudo ./install.sh install \
-  --version v0.6.3-alpha \
-  --release-base-url https://cos.example.com/nextunnel/v0.6.3-alpha \
+  --version v0.6.4-alpha \
+  --release-base-url https://cos.example.com/nextunnel/v0.6.4-alpha \
   --sha256 <sha256>
 ```
 
@@ -238,7 +238,7 @@ sudo ./install.sh install \
 
 ```bash
 sudo ./install.sh install \
-  --version v0.6.3-alpha \
+  --version v0.6.4-alpha \
   --github-proxy https://your-proxy.example.com/
 ```
 
@@ -249,7 +249,7 @@ sudo ./install.sh install \
 升级：
 
 ```bash
-sudo /opt/nextunnel/deploy/server/install.sh update --version v0.6.3-alpha
+sudo /opt/nextunnel/deploy/server/install.sh update --version v0.6.4-alpha
 sudo /opt/nextunnel/deploy/server/install.sh health
 ```
 

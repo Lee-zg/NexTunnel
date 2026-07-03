@@ -198,7 +198,7 @@ func TestCheckForUpdateUsesReleaseAssetAndSemver(t *testing.T) {
 	withUpdateCheckServer(t, server)
 
 	originalVersion := AppVersion
-	AppVersion = "0.6.3-alpha"
+	AppVersion = "0.6.4-alpha"
 	t.Cleanup(func() { AppVersion = originalVersion })
 
 	info, err := app.CheckForUpdate()
@@ -220,7 +220,7 @@ func TestUpdateInfoFromReleaseDoesNotPromptForSameOldOrInvalidVersion(t *testing
 		current string
 		latest  string
 	}{
-		{name: "same", current: "0.6.3-alpha", latest: "v0.6.3-alpha"},
+		{name: "same", current: "0.6.4-alpha", latest: "v0.6.4-alpha"},
 		{name: "old", current: "0.6.3", latest: "v0.6.1"},
 		{name: "invalid latest", current: "0.6.3", latest: "nightly"},
 		{name: "invalid current", current: "dev", latest: "v0.7.0"},
@@ -471,7 +471,7 @@ func TestEnsureVirtualNetworkDeviceForWindowsCreatesAndReusesTUN(t *testing.T) {
 		checkVirtualNetworkInterfaceName = originalCheckVirtualNetworkInterfaceName
 	})
 
-	if err := app.ensureVirtualNetworkDeviceForPlatform("windows", cfg); err != nil {
+	if err := app.ensureVirtualNetworkDeviceForPlatform("windows", &cfg); err != nil {
 		t.Fatalf("ensureVirtualNetworkDeviceForPlatform: %v", err)
 	}
 	if len(capturedConfigs) != 1 {
@@ -485,7 +485,7 @@ func TestEnsureVirtualNetworkDeviceForWindowsCreatesAndReusesTUN(t *testing.T) {
 		t.Fatalf("unexpected TUN subnet: %+v", captured.Subnet)
 	}
 
-	if err := app.ensureVirtualNetworkDeviceForPlatform("windows", cfg); err != nil {
+	if err := app.ensureVirtualNetworkDeviceForPlatform("windows", &cfg); err != nil {
 		t.Fatalf("ensureVirtualNetworkDeviceForPlatform reuse: %v", err)
 	}
 	if len(capturedConfigs) != 1 {
@@ -513,7 +513,8 @@ func TestEnsureVirtualNetworkDeviceForWindowsReportsCreateFailure(t *testing.T) 
 		checkVirtualNetworkInterfaceName = originalCheckVirtualNetworkInterfaceName
 	})
 
-	err := app.ensureVirtualNetworkDeviceForPlatform("windows", testVirtualNetworkConfig())
+	cfg := testVirtualNetworkConfig()
+	err := app.ensureVirtualNetworkDeviceForPlatform("windows", &cfg)
 	if err == nil {
 		t.Fatal("expected TUN create failure")
 	}
@@ -542,7 +543,8 @@ func TestEnsureVirtualNetworkDeviceForWindowsReusesExistingInterface(t *testing.
 		checkVirtualNetworkInterfaceName = originalCheckVirtualNetworkInterfaceName
 	})
 
-	if err := app.ensureVirtualNetworkDeviceForPlatform("windows", testVirtualNetworkConfig()); err != nil {
+	cfg := testVirtualNetworkConfig()
+	if err := app.ensureVirtualNetworkDeviceForPlatform("windows", &cfg); err != nil {
 		t.Fatalf("ensureVirtualNetworkDeviceForPlatform: %v", err)
 	}
 }

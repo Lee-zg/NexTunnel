@@ -143,6 +143,15 @@ export interface WintunStatus {
   action: string
 }
 
+export interface MacOSHelperStatus {
+  running: boolean
+  version: string
+  protocol_version: string
+  signed: boolean
+  socket_path: string
+  message: string
+}
+
 export interface RepairWintunInput {
   source: 'bundled' | 'download'
 }
@@ -171,6 +180,7 @@ export interface RuntimeStatus {
   p2p_status: string
   nat_type: string
   tun: PlatformCapabilities
+  macos_helper: MacOSHelperStatus
   virtual_network: VirtualNetworkState
   traffic_stats: { bytes_in: number; bytes_out: number; tunnels: number }
   last_error: string
@@ -318,6 +328,14 @@ const PREVIEW_TUN: PlatformCapabilities = {
   EnvironmentHints: [
     '安装器或服务进程应完成真实 TUN 前置条件；受限环境只启用 P2P/Relay 能力。',
   ],
+}
+const PREVIEW_MACOS_HELPER: MacOSHelperStatus = {
+  running: false,
+  version: '',
+  protocol_version: '',
+  signed: false,
+  socket_path: '',
+  message: 'Preview mode does not run the macOS helper.',
 }
 const PREVIEW_FAVORITE_PORTS: FavoritePortInfo[] = [
   {
@@ -488,6 +506,7 @@ const createPreviewBinding = (): Record<string, WailsMethod> => ({
     p2p_status: '',
     nat_type: '',
     tun: PREVIEW_TUN,
+    macos_helper: PREVIEW_MACOS_HELPER,
     virtual_network: PREVIEW_VIRTUAL_NETWORK,
     traffic_stats: PREVIEW_TRAFFIC_STATS,
     last_error: '',

@@ -455,6 +455,13 @@ const messages = {
         relaunchRequested: '已请求管理员修复',
         relaunchFailed: '请求管理员修复失败',
       },
+      macosHelper: {
+        title: 'macOS TUN Helper',
+        unknown: '正在检查 LaunchDaemon helper 状态。',
+        socket: 'Socket',
+        version: '版本',
+        signed: '签名状态',
+      },
     },
   },
   'en-US': {
@@ -907,6 +914,13 @@ const messages = {
         relaunchAdmin: 'Restart as admin to repair',
         relaunchRequested: 'Admin repair requested',
         relaunchFailed: 'Failed to request admin repair',
+      },
+      macosHelper: {
+        title: 'macOS TUN Helper',
+        unknown: 'Checking LaunchDaemon helper status.',
+        socket: 'Socket',
+        version: 'Version',
+        signed: 'Signing',
       },
     },
   },

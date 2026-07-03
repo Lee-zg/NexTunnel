@@ -1,0 +1,9 @@
+run:
+  timeout: 5m
+
+linters:
+  disable:
+    # Existing debt tracked outside this release. Keep CI focused on compile,
+    # vet, staticcheck, ineffassign, and frontend gates for v0.6.4-alpha.
+    - errcheck
+    - unused

@@ -4,7 +4,7 @@
 
 NexTunnel 同样支持把内网服务通过中继暴露到远端端口，但它额外提供桌面端可视化、Control Plane、Dashboard、Relay Admin API、NAT/STUN 诊断、真实 TUN 预检和发布前生产验证工具链。
 
-v0.6.3-alpha 的生产可用核心是自部署 Relay/Dashboard、桌面 TCP/HTTP 隧道、客户端监控、服务端安装脚本和诊断闭环。P2P、TUN、eBPF 和 Edge 能力按验证工具链与当前平台条件明确边界。
+v0.6.4-alpha 的生产可用核心是自部署 Relay/Dashboard、桌面 TCP/HTTP 隧道、客户端监控、服务端安装脚本和诊断闭环。P2P、TUN、eBPF 和 Edge 能力按验证工具链与当前平台条件明确边界。
 
 ## 最少需要开放哪些端口？
 
@@ -61,8 +61,8 @@ sudo ./install.sh install \
 
 ```bash
 sudo ./install.sh install \
-  --version v0.6.3-alpha \
-  --release-base-url https://cos.example.com/nextunnel/v0.6.3-alpha \
+  --version v0.6.4-alpha \
+  --release-base-url https://cos.example.com/nextunnel/v0.6.4-alpha \
   --sha256 <sha256>
 ```
 
@@ -70,7 +70,7 @@ sudo ./install.sh install \
 
 ```bash
 sudo ./install.sh install \
-  --version v0.6.3-alpha \
+  --version v0.6.4-alpha \
   --github-proxy https://your-proxy.example.com/
 ```
 
@@ -101,7 +101,7 @@ Windows 系统路由 TUN 需要官方、匹配架构的 `wintun.dll`。处理方
 
 ## macOS 系统路由 TUN 是生产可用吗？
 
-v0.6.3-alpha 中 macOS P2P/Relay 可用，系统路由 TUN 需要 root/sudo、授权 helper 或 LaunchDaemon。没有这些外部条件时，只能标注为预览限制。
+v0.6.4-alpha 中 macOS P2P/Relay 可用。系统路由 TUN 需要安装 signed/notarized pkg，pkg 会安装 `/Library/PrivilegedHelperTools/nextunnel-helper` 和 `com.nextunnel.helper` LaunchDaemon；DMG 不启用 System TUN。没有 helper 验证报告时，只能标注为外部阻塞或预览限制。
 
 ## Linux TUN 需要什么权限？
 
@@ -149,11 +149,11 @@ DASHBOARD_RELAY_ADMIN_URL=http://relay-server:7001
 
 - Dashboard HTTPS 域名和有效证书。
 - Windows 管理员权限和 Wintun DLL。
-- macOS sudo/root 或授权 helper。
+- macOS signed/notarized pkg、LaunchDaemon helper 或验证环境 `sudo -n`。
 - Linux eBPF 节点具备 root、clang、CAP_BPF/CAP_NET_ADMIN。
 - Edge/Anycast 需要真实 Control Plane 或多地域节点。
 
-验证脚本会输出 JSON 到 `dist/verification/`。
+验证脚本会输出 JSON 到 `dist/verification/`。发布说明只能把已有 JSON 报告支撑的能力标成“真实环境功能验收通过”或“生产压测通过”；缺少域名、证书、驱动、权限或真实节点时应标成“外部阻塞”。
 
 ## 可以把真实 token 写进 issue 或日志吗？
 

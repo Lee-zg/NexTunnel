@@ -28,11 +28,12 @@ const (
 	UTUN_OPT_IFNAME = 2
 )
 
-// createKernelTUN creates a real TUN device via utun on macOS.
-func createKernelTUN(cfg TUNConfig) (TUNDevice, error) {
+// CreateDarwinKernelTUNFile creates a real utun device and returns the backing
+// file so a privileged helper can transfer it to the desktop process.
+func CreateDarwinKernelTUNFile(cfg TUNConfig) (*os.File, string, int, error) {
 	fd, err := syscall.Socket(AF_SYSTEM, syscall.SOCK_DGRAM, SYS_CONTROL)
 	if err != nil {
-		return nil, fmt.Errorf("socket AF_SYSTEM: %w", err)
+		return nil, "", 0, fmt.Errorf("socket AF_SYSTEM: %w", err)
 	}
 
 	// 按 Darwin ctl_info 的真实布局查询 utun 控制器 ID。
@@ -45,7 +46,7 @@ func createKernelTUN(cfg TUNConfig) (TUNDevice, error) {
 	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), 0xC0644E03, uintptr(unsafe.Pointer(&ctlInfo)))
 	if errno != 0 {
 		syscall.Close(fd)
-		return nil, fmt.Errorf("ioctl CTLIOCGINFO: %w", errno)
+		return nil, "", 0, fmt.Errorf("ioctl CTLIOCGINFO: %w", errno)
 	}
 
 	// sockaddr_ctl 必须包含 ss_sysaddr=AF_SYS_CONTROL，否则 connect 会失败或行为不确定。
@@ -66,7 +67,7 @@ func createKernelTUN(cfg TUNConfig) (TUNDevice, error) {
 	_, _, errno = syscall.Syscall(syscall.SYS_CONNECT, uintptr(fd), uintptr(unsafe.Pointer(&sc)), uintptr(unsafe.Sizeof(sc)))
 	if errno != 0 {
 		syscall.Close(fd)
-		return nil, fmt.Errorf("connect utun: %w", errno)
+		return nil, "", 0, fmt.Errorf("connect utun: %w", errno)
 	}
 
 	// Get device name
@@ -75,7 +76,7 @@ func createKernelTUN(cfg TUNConfig) (TUNDevice, error) {
 	_, _, errno = syscall.Syscall6(syscall.SYS_GETSOCKOPT, uintptr(fd), SYS_CONTROL, UTUN_OPT_IFNAME, uintptr(unsafe.Pointer(&nameBuf[0])), uintptr(unsafe.Pointer(&nameLen)), 0)
 	if errno != 0 {
 		syscall.Close(fd)
-		return nil, fmt.Errorf("getsockopt utun name: %w", errno)
+		return nil, "", 0, fmt.Errorf("getsockopt utun name: %w", errno)
 	}
 	devName := string(nameBuf[:nameLen-1])
 
@@ -84,14 +85,32 @@ func createKernelTUN(cfg TUNConfig) (TUNDevice, error) {
 	if mtu == 0 {
 		mtu = 1420
 	}
+	return file, devName, mtu, nil
+}
 
+// NewDarwinKernelTUNFromFile wraps a utun file descriptor received from the
+// privileged helper.
+func NewDarwinKernelTUNFromFile(file *os.File, name string, cfg TUNConfig) TUNDevice {
+	mtu := cfg.MTU
+	if mtu == 0 {
+		mtu = 1420
+	}
 	return &kernelTUN{
 		file:    file,
-		name:    devName,
+		name:    name,
 		mtu:     mtu,
 		localIP: cfg.LocalIP,
 		peerIP:  cfg.PeerIP,
-	}, nil
+	}
+}
+
+// createKernelTUN creates a real TUN device via utun on macOS.
+func createKernelTUN(cfg TUNConfig) (TUNDevice, error) {
+	file, name, _, err := CreateDarwinKernelTUNFile(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return NewDarwinKernelTUNFromFile(file, name, cfg), nil
 }
 
 func (t *kernelTUN) ReadPacket(buf []byte) (int, error) {
@@ -115,7 +134,7 @@ func (t *kernelTUN) WritePacket(buf []byte) (int, error) {
 		return 0, fmt.Errorf("write packet buffer is empty")
 	}
 	version := buf[0] >> 4
-	family := uint32(syscall.AF_INET)
+	var family uint32
 	if version == 4 {
 		family = syscall.AF_INET
 	} else if version == 6 {

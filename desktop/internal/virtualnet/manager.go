@@ -19,6 +19,7 @@ const (
 type Manager struct {
 	runner           CommandRunner
 	interfaceChecker NetworkInterfaceChecker
+	privileged       PrivilegedApplier
 	logger           *slog.Logger
 	mu               sync.Mutex
 	state            State
@@ -26,6 +27,12 @@ type Manager struct {
 
 // NewManager 创建虚拟网络管理器，runner 为空时使用真实系统命令执行器。
 func NewManager(runner CommandRunner, logger *slog.Logger) *Manager {
+	return NewManagerWithPrivilegedApplier(runner, logger, nil)
+}
+
+// NewManagerWithPrivilegedApplier creates a manager that delegates apply/reset
+// to a constrained privileged helper when one is configured.
+func NewManagerWithPrivilegedApplier(runner CommandRunner, logger *slog.Logger, privileged PrivilegedApplier) *Manager {
 	var interfaceChecker NetworkInterfaceChecker
 	if runner == nil {
 		execRunner := ExecRunner{}
@@ -35,7 +42,7 @@ func NewManager(runner CommandRunner, logger *slog.Logger) *Manager {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Manager{runner: runner, interfaceChecker: interfaceChecker, logger: logger}
+	return &Manager{runner: runner, interfaceChecker: interfaceChecker, privileged: privileged, logger: logger}
 }
 
 // State 返回当前虚拟网络状态副本。
@@ -53,6 +60,21 @@ func (m *Manager) Apply(cfg Config) (State, error) {
 	if err := validateConfig(cfg); err != nil {
 		m.state.LastError = err.Error()
 		return m.state, err
+	}
+
+	if m.privileged != nil {
+		state, err := m.privileged.ApplyVirtualNetwork(cfg)
+		if err != nil {
+			m.state = stateFromConfig(cfg)
+			m.state.Applied = false
+			m.state.LastError = err.Error()
+			m.logger.Error("privileged virtual network apply failed", "interface", cfg.Interface, "error", err)
+			return m.state, err
+		}
+		m.state = state
+		m.state.LastError = ""
+		m.logger.Info("virtual network applied by privileged helper", "interface", state.Interface, "ip", state.VirtualIP)
+		return m.state, nil
 	}
 
 	if err := m.ensureApplyPreconditions(runtime.GOOS, cfg); err != nil {
@@ -97,6 +119,20 @@ func (m *Manager) Reset() (State, error) {
 	defer m.mu.Unlock()
 
 	if !m.state.Applied {
+		return m.state, nil
+	}
+
+	if m.privileged != nil {
+		state, err := m.privileged.ResetVirtualNetwork(m.state)
+		if err != nil {
+			m.state.LastError = err.Error()
+			m.logger.Error("privileged virtual network reset failed", "interface", m.state.Interface, "error", err)
+			return m.state, err
+		}
+		m.state = state
+		m.state.Applied = false
+		m.state.LastError = ""
+		m.logger.Info("virtual network reset by privileged helper", "interface", m.state.Interface)
 		return m.state, nil
 	}
 

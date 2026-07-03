@@ -240,7 +240,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/verify-dashboard.ps1 `
   -Username "admin" `
   -Password "<strong-password>" `
   -AllowedOrigin "https://dashboard.example.com" `
-  -ReportPath "dist/verification/dashboard-report.json"
+  -ReportPath "dist/verification/dashboard-https-latest.json"
 ```
 
 无 HTTPS 域名时：
@@ -251,7 +251,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/verify-dashboard-ssh.ps1 `
   -User "root" `
   -IdentityFile "$env:USERPROFILE\.ssh\id_ed25519" `
   -RemoteDashboardPort 8080 `
-  -ReportPath "dist/verification/dashboard-ssh-report.json"
+  -ReportPath "dist/verification/dashboard-ssh-latest.json"
 ```
 
 SSH 隧道方式避免管理员密码经过公网 HTTP。

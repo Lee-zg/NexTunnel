@@ -130,6 +130,7 @@ func TestEvaluatePlatformCapabilities_DarwinNeedsPrivilege(t *testing.T) {
 		hasUserspaceStack: true,
 		needsPrivilege:    true,
 		privileged:        false,
+		macosHelper:       macOSHelperPreflightResult{required: true},
 		linuxTunAvailable: true,
 	})
 
@@ -139,8 +140,33 @@ func TestEvaluatePlatformCapabilities_DarwinNeedsPrivilege(t *testing.T) {
 	if !hasIssue(caps.BlockingIssues, "privilege_required") {
 		t.Fatalf("expected privilege_required issue, got %+v", caps.BlockingIssues)
 	}
+	if !hasIssue(caps.BlockingIssues, "macos_helper_missing") {
+		t.Fatalf("expected macos_helper_missing issue, got %+v", caps.BlockingIssues)
+	}
 	if !hasAction(caps.EnvironmentHints, "LaunchDaemon") {
 		t.Fatalf("expected macOS LaunchDaemon hint, got %+v", caps.EnvironmentHints)
+	}
+}
+
+func TestEvaluatePlatformCapabilities_DarwinHelperSatisfiesPrivilege(t *testing.T) {
+	caps := evaluatePlatformCapabilities(tunPreflightInput{
+		platformName:      "darwin",
+		hasKernelSupport:  true,
+		hasUserspaceStack: true,
+		needsPrivilege:    true,
+		privileged:        false,
+		macosHelper:       macOSHelperPreflightResult{required: true, found: true, reachable: true, ready: true, detail: "ready"},
+		linuxTunAvailable: true,
+	})
+
+	if !caps.KernelTUNReady {
+		t.Fatalf("expected helper-backed kernel TUN ready, got %+v", caps)
+	}
+	if caps.NeedsAdminPrivilege {
+		t.Fatalf("helper-backed darwin should not require admin in desktop process: %+v", caps)
+	}
+	if !hasIssue(caps.DegradedFeatures, "macos_helper_ready") {
+		t.Fatalf("expected macos_helper_ready info, got %+v", caps.DegradedFeatures)
 	}
 }
 

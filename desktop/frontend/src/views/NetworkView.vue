@@ -148,6 +148,39 @@
         </div>
 
         <div
+          v-if="shouldShowMacOSHelperPanel"
+          class="wintun-status"
+          :class="{ ready: macOSHelperReady, blocked: !macOSHelperReady }"
+        >
+          <div class="wintun-status-main">
+            <div>
+              <strong>{{ t('network.macosHelper.title') }}</strong>
+              <span>{{ macOSHelper?.message || t('network.macosHelper.unknown') }}</span>
+            </div>
+            <n-tag
+              round
+              size="small"
+              :type="macOSHelperReady ? 'success' : 'warning'"
+              :bordered="false"
+            >
+              {{ macOSHelperReady ? t('network.ready') : t('network.notReady') }}
+            </n-tag>
+          </div>
+          <div class="wintun-meta">
+            <span>{{ t('network.macosHelper.socket') }}</span>
+            <strong>{{ macOSHelper?.socket_path || '--' }}</strong>
+          </div>
+          <div class="wintun-meta">
+            <span>{{ t('network.macosHelper.version') }}</span>
+            <strong>{{ macOSHelper?.version || '--' }}</strong>
+          </div>
+          <div class="wintun-meta">
+            <span>{{ t('network.macosHelper.signed') }}</span>
+            <strong>{{ macOSHelper?.signed ? t('network.ready') : t('network.notReady') }}</strong>
+          </div>
+        </div>
+
+        <div
           v-if="platformIssues.length > 0"
           class="issue-list"
         >
@@ -248,6 +281,7 @@ const { t } = useI18n()
 const runtime = computed(() => store.runtimeStatus)
 const virtualNetwork = computed(() => store.virtualNetwork)
 const wintunStatus = computed(() => store.wintunStatus)
+const macOSHelper = computed(() => runtime.value?.macos_helper)
 const natDetection = computed(() => store.lastNATDetection)
 const lastCommands = computed(() => virtualNetwork.value?.last_commands ?? [])
 
@@ -287,6 +321,8 @@ const wintunReady = computed(() => {
   return Boolean(status?.found && status.arch_compatible)
 })
 const wintunNeedsRepair = computed(() => shouldShowWintunPanel.value && !wintunReady.value)
+const shouldShowMacOSHelperPanel = computed(() => runtime.value?.tun?.PlatformName === 'darwin')
+const macOSHelperReady = computed(() => Boolean(macOSHelper.value?.running && macOSHelper.value.protocol_version === '1'))
 
 const translateProductionMode = (mode?: string): string => {
   if (!mode) return '--'

@@ -10,9 +10,10 @@ param(
   [string]$RelayToken = "",
   [string]$StunServer = "",
   [string]$WintunDllPath = "",
-  [string]$ReportPath = "dist/verification/p2p-tun-windows-macos-report.json",
+  [string]$ReportPath = "dist/verification/tun-windows-macos-latest.json",
   [switch]$SkipRouteApply,
   [switch]$MacUseSudo,
+  [switch]$MacUseHelper,
   [switch]$KeepTemporaryAccess,
   [switch]$BootstrapOnly,
   [switch]$CleanupOnly
@@ -36,10 +37,14 @@ $temporaryRoot = if (-not [string]::IsNullOrWhiteSpace($env:NEXTUNNEL_P2P_TUN_KE
 } else {
   Join-Path $repositoryRoot ".tmp\p2p-tun-verify"
 }
-$reportFullPath = Join-Path $repositoryRoot $ReportPath
+$reportFullPath = if ([System.IO.Path]::IsPathRooted($ReportPath)) {
+  $ReportPath
+} else {
+  Join-Path $repositoryRoot $ReportPath
+}
 $reportDirectory = Split-Path -Parent $reportFullPath
-$windowsReportPath = Join-Path $reportDirectory "p2p-tun-windows-report.json"
-$macReportPath = Join-Path $reportDirectory "p2p-tun-macos-report.json"
+$windowsReportPath = Join-Path $reportDirectory "tun-windows-latest.json"
+$macReportPath = Join-Path $reportDirectory "tun-macos-latest.json"
 $temporaryKeyPath = Join-Path $temporaryRoot "id_ed25519_nextunnel_verify"
 $temporaryPublicKeyPath = "$temporaryKeyPath.pub"
 $macUserHost = "$MacUser@$MacHost"
@@ -469,7 +474,11 @@ function Copy-WintunDllIfAvailable {
 
 function Test-MacPasswordlessSudo {
   if (-not $MacUseSudo) {
-    Add-Result -Name "mac_sudo_not_requested" -Passed $true -Detail "未启用 -MacUseSudo；macOS 真实 utun/路由验证可能因权限失败，仅 P2P 候选交换可继续验证"
+    if ($MacUseHelper) {
+      Add-Result -Name "mac_helper_requested" -Passed $true -Detail "未启用 sudo；macOS 真实 utun/路由将通过 LaunchDaemon helper 验证"
+    } else {
+      Add-Result -Name "mac_sudo_not_requested" -Passed $true -Detail "未启用 -MacUseSudo 或 -MacUseHelper；macOS 真实 utun/路由验证可能因权限失败，仅 P2P 候选交换可继续验证"
+    }
     return
   }
   $sudoProbe = Invoke-NativeCommand -Name "ssh" -Arguments (Get-SshArguments "sudo -n true") -AllowFailure
@@ -665,6 +674,8 @@ function Write-Summary {
       user = $MacUser
       port = $MacPort
       base_url = $MacBaseUrl
+      use_helper = [bool]$MacUseHelper
+      use_sudo = [bool]$MacUseSudo
     }
     windows = [ordered]@{
       listen = $WindowsListen

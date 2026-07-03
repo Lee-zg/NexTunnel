@@ -12,7 +12,7 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $RepoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$DefaultVersion = "v0.6.3-alpha"
+$DefaultVersion = "v0.6.4-alpha"
 $DefaultWintunSha256 = "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51"
 $DefaultMacHost = "10.160.166.44"
 $DefaultMacUser = "lizhigang"
@@ -28,7 +28,7 @@ $TargetDescriptions = [ordered]@{
     "build"                = "构建 Wails 桌面应用"
     "build-server"         = "构建服务端与 CLI 二进制"
     "package-desktop"      = "构建 Windows 桌面发布包"
-    "package-macos"        = "构建 macOS 桌面 DMG 发布包"
+    "package-macos"        = "构建 macOS 桌面 DMG 与 System TUN PKG 发布包"
     "package-cli"          = "构建 CLI 发布包"
     "package-server"       = "构建服务端发布包"
     "lint"                 = "运行全部代码检查"
@@ -37,6 +37,7 @@ $TargetDescriptions = [ordered]@{
     "test"                 = "运行全部测试"
     "test-go"              = "运行 Go 测试"
     "test-frontend"        = "运行前端测试"
+    "verify-scripts-static" = "静态校验验证脚本、参数契约并输出 JSON 报告"
     "verify-dashboard"     = "验证 Dashboard 生产 API"
     "verify-dashboard-ssh" = "通过 SSH 隧道验证 Dashboard"
     "verify-tun"           = "运行本地 TUN 验证"
@@ -370,7 +371,7 @@ function Invoke-Target {
                 "-BaseUrl", $dashboardUrl,
                 "-Password", $dashboardPassword,
                 "-AllowedOrigin", $dashboardOrigin,
-                "-ReportPath", "dist\verification\dashboard-report.json"
+                "-ReportPath", "dist\verification\dashboard-https-latest.json"
             )
         }
         "verify-dashboard-ssh" {
@@ -386,8 +387,11 @@ function Invoke-Target {
                 "-IdentityFile", $dashboardIdentity,
                 "-RemoteDashboardPort", $dashboardRemotePort,
                 "-AllowedOrigin", $dashboardOrigin,
-                "-ReportPath", "dist\verification\dashboard-ssh-report.json"
+                "-ReportPath", "dist\verification\dashboard-ssh-latest.json"
             )
+        }
+        "verify-scripts-static" {
+            Invoke-RepoScript -ScriptPath "scripts\verify-scripts-static.ps1"
         }
         "verify-tun" {
             Invoke-RepoScript -ScriptPath "scripts\verify-tun.ps1"

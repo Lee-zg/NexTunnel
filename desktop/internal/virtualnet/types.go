@@ -41,3 +41,10 @@ type CommandRunner interface {
 type NetworkInterfaceChecker interface {
 	InterfaceExists(name string) (bool, error)
 }
+
+// PrivilegedApplier lets a platform-specific helper apply network state without
+// exposing arbitrary system command execution to the desktop process.
+type PrivilegedApplier interface {
+	ApplyVirtualNetwork(cfg Config) (State, error)
+	ResetVirtualNetwork(state State) (State, error)
+}

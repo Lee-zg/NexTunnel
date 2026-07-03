@@ -102,7 +102,7 @@ func runOrchestrator(args []string) {
 	var skipRouteApply bool
 	fs.StringVar(&listen, "listen", "0.0.0.0:19090", "coordination HTTP listen address")
 	fs.StringVar(&peerURL, "peer-url", "", "peer responder base URL, e.g. http://10.160.166.44:19091")
-	fs.StringVar(&reportPath, "report", "dist/verification/p2p-tun-windows-macos-report.json", "JSON report path")
+	fs.StringVar(&reportPath, "report", "dist/verification/tun-windows-macos-latest.json", "JSON report path")
 	fs.StringVar(&stunServer, "stun", "", "optional STUN server")
 	fs.StringVar(&relayAddr, "relay", "", "optional relay TCP address for fallback verification")
 	fs.StringVar(&relayToken, "relay-token", "", "relay auth token")
@@ -178,7 +178,7 @@ func runResponder(args []string) {
 	var skipRouteApply bool
 	fs.StringVar(&listen, "listen", "0.0.0.0:19091", "responder HTTP listen address")
 	fs.StringVar(&coordinator, "coordinator", "", "orchestrator base URL")
-	fs.StringVar(&reportPath, "report", "/tmp/nextunnel-p2p-tun-macos-report.json", "JSON report path")
+	fs.StringVar(&reportPath, "report", "/tmp/nextunnel-tun-macos-latest.json", "JSON report path")
 	fs.StringVar(&stunServer, "stun", "", "optional STUN server")
 	fs.BoolVar(&skipRouteApply, "skip-route-apply", false, "verify TUN creation without applying routes")
 	fs.Parse(args)
@@ -209,13 +209,14 @@ func runLocalTUN(ctx context.Context, rep *report, cfg endpointConfig, skipRoute
 	}
 	capabilities := rep.capabilities()
 	rep.add("tun_preflight", capabilities.KernelTUNReady, platformCapabilityDetail(capabilities))
-	device, err := createKernelTUNDevice(p2p.TUNConfig{
+	tunConfig := p2p.TUNConfig{
 		Name:    cfg.Interface,
 		MTU:     cfg.MTU,
 		LocalIP: net.ParseIP(cfg.VirtualIP),
 		PeerIP:  net.ParseIP(cfg.PeerIP),
 		Subnet:  parsedSubnet,
-	})
+	}
+	device, helperBacked, err := createLocalTUNDevice(tunConfig)
 	if err != nil {
 		rep.add("tun_create", false, err.Error())
 		return
@@ -237,7 +238,7 @@ func runLocalTUN(ctx context.Context, rep *report, cfg endpointConfig, skipRoute
 	if runtime.GOOS == "darwin" && strings.HasPrefix(name, "utun") {
 		routeInterface = name
 	}
-	manager := virtualnet.NewManager(nil, nil)
+	manager := newLocalVirtualNetworkManager(helperBacked)
 	state, err := manager.Apply(virtualnet.Config{
 		NodeID:    cfg.NodeID,
 		VirtualIP: cfg.VirtualIP,

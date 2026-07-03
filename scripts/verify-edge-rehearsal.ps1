@@ -1,7 +1,7 @@
 param(
   [string]$ControlUrl = "",
   [string]$ControlToken = "",
-  [string]$ReportPath = "dist/verification/edge-rehearsal-report.json",
+  [string]$ReportPath = "dist/verification/edge-rehearsal-latest.json",
   [switch]$RegisterRemote
 )
 
@@ -9,7 +9,11 @@ $ErrorActionPreference = "Stop"
 
 $repositoryRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $serverRoot = Join-Path $repositoryRoot "server"
-$reportFullPath = Join-Path $repositoryRoot $ReportPath
+$reportFullPath = if ([System.IO.Path]::IsPathRooted($ReportPath)) {
+  $ReportPath
+} else {
+  Join-Path $repositoryRoot $ReportPath
+}
 $reportDirectory = Split-Path -Parent $reportFullPath
 $binaryName = if ($IsWindows -or $env:OS -eq "Windows_NT") { "edge-rehearsal.exe" } else { "edge-rehearsal" }
 $packagedBinary = Join-Path $repositoryRoot "bin\$binaryName"

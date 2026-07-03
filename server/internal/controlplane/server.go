@@ -362,7 +362,7 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 }
 
 func writeAPIError(w http.ResponseWriter, status int, message string) {
-	writeJSON(w, status, map[string]string{"error": fmt.Sprintf("%s", message)})
+	writeJSON(w, status, map[string]string{"error": message})
 }
 
 func (s *Server) handleQueryAudit(w http.ResponseWriter, r *http.Request) {

@@ -71,14 +71,14 @@ nextunnel
 
 ```bash
 nextunnel server paths
-nextunnel server install --version v0.6.3-alpha --non-interactive --public-host example.com
+nextunnel server install --version v0.6.4-alpha --non-interactive --public-host example.com
 nextunnel server status
 nextunnel server health
 nextunnel server logs --follow
 nextunnel server restart
 nextunnel server down
 nextunnel server up
-nextunnel server update --version v0.6.3-alpha
+nextunnel server update --version v0.6.4-alpha
 nextunnel server uninstall --purge
 ```
 
@@ -86,7 +86,7 @@ nextunnel server uninstall --purge
 
 | 参数 | 说明 |
 | --- | --- |
-| `--version` | Release 版本，例如 `v0.6.3-alpha` |
+| `--version` | Release 版本，例如 `v0.6.4-alpha` |
 | `--package-url` | 服务端发布包 URL、本地路径或 `file://` 路径 |
 | `--sha256` | 发布包 SHA256 |
 | `--release-base-url` | 自定义 Release 下载基址 |

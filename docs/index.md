@@ -38,7 +38,7 @@ features:
   - title: 发布与生产验证
     details: Dashboard、P2P/TUN、Edge/Anycast、eBPF Linux 验证脚本输出 JSON 报告，适合发布前归档。
   - title: 明确 Beta 边界
-    details: v0.6.3-alpha 标注 macOS 系统路由 TUN、HTTPS 域名证书和 eBPF 压测等外部依赖条件。
+    details: v0.6.4-alpha 标注 macOS 系统路由 TUN、HTTPS 域名证书和 eBPF 压测等外部依赖条件。
 ---
 
 ## 推荐阅读顺序

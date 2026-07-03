@@ -18,14 +18,18 @@ param(
 
   [string]$AllowedOrigin = "",
 
-  [string]$ReportPath = "dist/verification/dashboard-ssh-report.json"
+  [string]$ReportPath = "dist/verification/dashboard-ssh-latest.json"
 )
 
 $ErrorActionPreference = "Stop"
 
 $repositoryRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $verifyScript = Join-Path $PSScriptRoot "verify-dashboard.ps1"
-$reportFullPath = Join-Path $repositoryRoot $ReportPath
+$reportFullPath = if ([System.IO.Path]::IsPathRooted($ReportPath)) {
+  $ReportPath
+} else {
+  Join-Path $repositoryRoot $ReportPath
+}
 
 if ([string]::IsNullOrWhiteSpace($User)) {
   $User = "root"

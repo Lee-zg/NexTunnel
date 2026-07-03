@@ -17,17 +17,28 @@ jobs:
         with:
           go-version: '1.25.0'
 
-      - name: golangci-lint (desktop)
-        uses: golangci/golangci-lint-action@v6
+      - uses: actions/setup-node@v4
         with:
-          version: latest
-          working-directory: desktop
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: desktop/frontend/package-lock.json
+
+      - name: Build desktop frontend for embedded assets
+        working-directory: desktop/frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
+
+      - name: golangci-lint (desktop)
+        working-directory: desktop
+        run: $(go env GOPATH)/bin/golangci-lint run --config ../.golangci.yml
 
       - name: golangci-lint (server)
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          working-directory: server
+        working-directory: server
+        run: $(go env GOPATH)/bin/golangci-lint run --config ../.golangci.yml
 
   lint-frontend:
     name: Lint Frontend
@@ -37,7 +48,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: |
             desktop/frontend/package-lock.json
@@ -71,11 +82,17 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: |
             desktop/frontend/package-lock.json
             server/web/package-lock.json
+
+      - name: Build desktop frontend for embedded assets
+        working-directory: desktop/frontend
+        run: |
+          npm ci
+          npm run build
 
       - name: Build Go (server)
         working-directory: server
@@ -101,10 +118,6 @@ jobs:
         working-directory: pkg
         run: go vet ./...
 
-      - name: Install desktop frontend deps
-        working-directory: desktop/frontend
-        run: npm ci
-
       - name: Build desktop frontend
         working-directory: desktop/frontend
         run: npm run build
@@ -117,6 +130,25 @@ jobs:
         working-directory: server/web
         run: npm run build
 
+  verify-scripts-static:
+    name: Verify Scripts Static
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse PowerShell scripts, check parameter contracts, and check shell syntax
+        shell: pwsh
+        run: ./scripts/verify-scripts-static.ps1
+
+      - name: Upload verification reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-reports-static
+          path: dist/verification/*.json
+          if-no-files-found: error
+          retention-days: 30
+
   test-go:
     name: Test Go
     runs-on: ubuntu-latest
@@ -126,6 +158,18 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25.0'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: desktop/frontend/package-lock.json
+
+      - name: Build desktop frontend for embedded assets
+        working-directory: desktop/frontend
+        run: |
+          npm ci
+          npm run build
 
       - name: Test desktop
         working-directory: desktop

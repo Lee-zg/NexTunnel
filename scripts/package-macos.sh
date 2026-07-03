@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="v0.6.3-alpha"
+VERSION="v0.6.4-alpha"
 PLATFORM="darwin/universal"
 SKIP_FRONTEND="false"
 SIGN="false"
 NOTARIZE="false"
+BUILD_PKG="true"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -27,6 +28,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     -Notarize|--notarize)
       NOTARIZE="true"
+      shift
+      ;;
+    -SkipPkg|--skip-pkg)
+      BUILD_PKG="false"
       shift
       ;;
     *)
@@ -84,6 +89,45 @@ DMG_PATH="$DIST_ROOT/${TARGET_NAME}.dmg"
 APP_SOURCE="$DESKTOP_ROOT/build/bin/NexTunnel.app"
 APP_TARGET="$STAGING_ROOT/NexTunnel.app"
 SIGNING_STATE="unsigned-alpha"
+HELPER_SIGNED_VALUE="false"
+HELPER_BUILD_ROOT="$DIST_ROOT/${TARGET_NAME}-helper-build"
+HELPER_TARGET="$STAGING_ROOT/nextunnel-helper"
+HELPER_PLIST_SOURCE="$MACOS_PACKAGING_ROOT/com.nextunnel.helper.plist"
+PKG_ROOT="$DIST_ROOT/${TARGET_NAME}-pkgroot"
+PKG_SCRIPTS_ROOT="$DIST_ROOT/${TARGET_NAME}-pkg-scripts"
+PKG_PATH="$DIST_ROOT/${TARGET_NAME}.pkg"
+
+build_helper_for_arch() {
+  local arch="$1"
+  local output="$2"
+  (
+    cd "$DESKTOP_ROOT"
+    GOOS=darwin GOARCH="$arch" CGO_ENABLED=0 go build \
+      -trimpath \
+      -ldflags "-s -w -X main.version=$NORMALIZED_VERSION -X main.signed=$HELPER_SIGNED_VALUE" \
+      -o "$output" \
+      ./cmd/nextunnel-helper
+  )
+}
+
+build_macos_helper() {
+  rm -rf "$HELPER_BUILD_ROOT"
+  mkdir -p "$HELPER_BUILD_ROOT"
+  case "$TARGET_ARCH" in
+    universal)
+      build_helper_for_arch amd64 "$HELPER_BUILD_ROOT/nextunnel-helper-amd64"
+      build_helper_for_arch arm64 "$HELPER_BUILD_ROOT/nextunnel-helper-arm64"
+      lipo -create "$HELPER_BUILD_ROOT/nextunnel-helper-amd64" "$HELPER_BUILD_ROOT/nextunnel-helper-arm64" -output "$HELPER_TARGET"
+      ;;
+    amd64|arm64)
+      build_helper_for_arch "$TARGET_ARCH" "$HELPER_TARGET"
+      ;;
+    *)
+      echo "不支持的 macOS helper 架构：$TARGET_ARCH" >&2
+      exit 1
+      ;;
+  esac
+}
 
 mkdir -p "$DIST_ROOT"
 
@@ -109,9 +153,13 @@ if [[ ! -d "$APP_SOURCE" ]]; then
   exit 1
 fi
 
-rm -rf "$STAGING_ROOT" "$DMG_STAGING" "$DMG_PATH"
+rm -rf "$STAGING_ROOT" "$DMG_STAGING" "$DMG_PATH" "$PKG_ROOT" "$PKG_SCRIPTS_ROOT" "$PKG_PATH"
 mkdir -p "$STAGING_ROOT" "$DMG_STAGING"
 cp -R "$APP_SOURCE" "$APP_TARGET"
+if [[ "$SIGN" == "true" ]]; then
+  HELPER_SIGNED_VALUE="true"
+fi
+build_macos_helper
 
 if [[ "$SIGN" == "true" ]]; then
   if [[ -z "${MACOS_DEVELOPER_ID_APPLICATION:-}" ]]; then
@@ -119,8 +167,10 @@ if [[ "$SIGN" == "true" ]]; then
     exit 1
   fi
   # 使用 hardened runtime，为后续 notarization 做准备。
+  codesign --force --options runtime --timestamp --sign "$MACOS_DEVELOPER_ID_APPLICATION" "$HELPER_TARGET"
   codesign --force --deep --options runtime --timestamp --sign "$MACOS_DEVELOPER_ID_APPLICATION" "$APP_TARGET"
   SIGNING_STATE="signed"
+  HELPER_SIGNED_VALUE="true"
 fi
 
 cp -R "$APP_TARGET" "$DMG_STAGING/NexTunnel.app"
@@ -143,6 +193,8 @@ Target: $PLATFORM
 Installer: dmg
 Binary: NexTunnel.app
 Wintun: skipped; macOS uses utun
+macOSHelper: $HELPER_TARGET
+macOSHelperLaunchDaemon: /Library/LaunchDaemons/com.nextunnel.helper.plist
 Signing: $SIGNING_STATE
 PrunedResources: true
 EOF
@@ -177,6 +229,64 @@ if [[ "$NOTARIZE" == "true" ]]; then
 fi
 
 shasum -a 256 "$DMG_PATH" | awk '{print tolower($1) "  " $2}' > "$DMG_PATH.sha256"
+
+if [[ "$BUILD_PKG" == "true" ]]; then
+  if [[ ! -f "$HELPER_PLIST_SOURCE" ]]; then
+    echo "未找到 LaunchDaemon plist：$HELPER_PLIST_SOURCE" >&2
+    exit 1
+  fi
+  mkdir -p "$PKG_ROOT/Applications" "$PKG_ROOT/Library/PrivilegedHelperTools" "$PKG_ROOT/Library/LaunchDaemons" "$PKG_SCRIPTS_ROOT"
+  cp -R "$APP_TARGET" "$PKG_ROOT/Applications/NexTunnel.app"
+  cp "$HELPER_TARGET" "$PKG_ROOT/Library/PrivilegedHelperTools/nextunnel-helper"
+  cp "$HELPER_PLIST_SOURCE" "$PKG_ROOT/Library/LaunchDaemons/com.nextunnel.helper.plist"
+  cat > "$PKG_SCRIPTS_ROOT/preinstall" <<'EOF'
+#!/bin/sh
+set -e
+/bin/launchctl bootout system/com.nextunnel.helper >/dev/null 2>&1 || true
+exit 0
+EOF
+  cat > "$PKG_SCRIPTS_ROOT/postinstall" <<'EOF'
+#!/bin/sh
+set -e
+/usr/sbin/chown root:wheel /Library/PrivilegedHelperTools/nextunnel-helper
+/bin/chmod 755 /Library/PrivilegedHelperTools/nextunnel-helper
+/usr/sbin/chown root:wheel /Library/LaunchDaemons/com.nextunnel.helper.plist
+/bin/chmod 644 /Library/LaunchDaemons/com.nextunnel.helper.plist
+/bin/mkdir -p /var/run/nextunnel
+/usr/sbin/chown root:admin /var/run/nextunnel
+/bin/chmod 770 /var/run/nextunnel
+/bin/launchctl bootstrap system /Library/LaunchDaemons/com.nextunnel.helper.plist >/dev/null 2>&1 || true
+/bin/launchctl enable system/com.nextunnel.helper >/dev/null 2>&1 || true
+exit 0
+EOF
+  chmod +x "$PKG_SCRIPTS_ROOT/preinstall" "$PKG_SCRIPTS_ROOT/postinstall"
+  PKGBUILD_ARGS=(
+    --root "$PKG_ROOT"
+    --scripts "$PKG_SCRIPTS_ROOT"
+    --identifier "com.nextunnel.desktop"
+    --version "$NORMALIZED_VERSION"
+    --install-location "/"
+  )
+  if [[ "$SIGN" == "true" ]]; then
+    if [[ -z "${MACOS_DEVELOPER_ID_INSTALLER:-}" ]]; then
+      echo "启用 pkg 签名需要设置 MACOS_DEVELOPER_ID_INSTALLER。" >&2
+      exit 1
+    fi
+    PKGBUILD_ARGS+=(--sign "$MACOS_DEVELOPER_ID_INSTALLER")
+  fi
+  pkgbuild "${PKGBUILD_ARGS[@]}" "$PKG_PATH"
+  if [[ "$NOTARIZE" == "true" ]]; then
+    xcrun notarytool submit "$PKG_PATH" \
+      --apple-id "$MACOS_NOTARY_APPLE_ID" \
+      --team-id "$MACOS_NOTARY_TEAM_ID" \
+      --password "$MACOS_NOTARY_PASSWORD" \
+      --wait
+    xcrun stapler staple "$PKG_PATH"
+  fi
+  shasum -a 256 "$PKG_PATH" | awk '{print tolower($1) "  " $2}' > "$PKG_PATH.sha256"
+  echo "macOS System TUN PKG 已生成：$PKG_PATH"
+  echo "SHA256：$PKG_PATH.sha256"
+fi
 
 echo "macOS DMG 已生成：$DMG_PATH"
 echo "SHA256：$DMG_PATH.sha256"

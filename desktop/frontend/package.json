@@ -1,7 +1,7 @@
 {
   "name": "nextunnel-frontend",
   "private": true,
-  "version": "0.6.3-alpha",
+  "version": "0.6.4-alpha",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -24,7 +24,7 @@
     "eslint": "^9.17.0",
     "eslint-plugin-vue": "^9.32.0",
     "typescript": "~5.6.3",
-    "vite": "^6.3.5",
+    "vite": "^6.4.3",
     "vue-tsc": "^2.2.8"
   }
 }

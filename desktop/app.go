@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/nextunnel/desktop/internal/config"
+	"github.com/nextunnel/desktop/internal/macoshelper"
 	"github.com/nextunnel/desktop/internal/nat"
 	"github.com/nextunnel/desktop/internal/p2p"
 	"github.com/nextunnel/desktop/internal/tunnel"
@@ -89,7 +90,7 @@ const (
 )
 
 // AppVersion 通过发布脚本的 -ldflags 注入；默认值用于本地开发和测试。
-var AppVersion = "0.6.3-alpha"
+var AppVersion = "0.6.4-alpha"
 
 var (
 	createVirtualNetworkTUNDevice    = p2p.CreateKernelTUN
@@ -129,7 +130,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 	a.db = db
 	a.store = config.NewStore(db)
-	a.vnet = virtualnet.NewManager(nil, a.logger)
+	a.vnet = a.newVirtualNetworkManager()
 
 	// Initialize tunnel manager from local configuration.
 	cfg := a.managerConfig()
@@ -236,6 +237,7 @@ type RuntimeStatus struct {
 	P2PStatus        string                   `json:"p2p_status"`
 	NATType          string                   `json:"nat_type"`
 	TUN              p2p.PlatformCapabilities `json:"tun"`
+	MacOSHelper      macoshelper.Status       `json:"macos_helper"`
 	VirtualNetwork   virtualnet.State         `json:"virtual_network"`
 	TrafficStats     map[string]int64         `json:"traffic_stats"`
 	LastError        string                   `json:"last_error"`
@@ -877,6 +879,7 @@ func (a *App) GetRuntimeStatus() RuntimeStatus {
 		P2PStatus:        a.GetP2PStatus(),
 		NATType:          a.GetNATType(),
 		TUN:              p2p.CurrentPlatform(),
+		MacOSHelper:      a.macOSHelperStatus(),
 		VirtualNetwork:   a.virtualNetworkState(),
 		TrafficStats:     a.GetTrafficStats(),
 		LastError:        a.lastErr,
@@ -897,7 +900,7 @@ func (a *App) ApplyVirtualNetwork() (virtualnet.State, error) {
 		a.recordError(err)
 		return a.virtualNetworkState(), err
 	}
-	if err := a.ensureVirtualNetworkDevice(*cfg); err != nil {
+	if err := a.ensureVirtualNetworkDevice(cfg); err != nil {
 		a.recordError(err)
 		return a.virtualNetworkState(), err
 	}
@@ -1594,12 +1597,18 @@ func (a *App) virtualNetworkState() virtualnet.State {
 	return a.vnet.State()
 }
 
-func (a *App) ensureVirtualNetworkDevice(cfg virtualnet.Config) error {
+func (a *App) ensureVirtualNetworkDevice(cfg *virtualnet.Config) error {
+	if cfg == nil {
+		return fmt.Errorf("virtual network config is required")
+	}
 	return a.ensureVirtualNetworkDeviceForPlatform(runtime.GOOS, cfg)
 }
 
 // ensureVirtualNetworkDevice 在 Windows 应用路由前确保 Wintun 适配器已经存在。
-func (a *App) ensureVirtualNetworkDeviceForPlatform(goos string, cfg virtualnet.Config) error {
+func (a *App) ensureVirtualNetworkDeviceForPlatform(goos string, cfg *virtualnet.Config) error {
+	if goos == "darwin" {
+		return a.ensureMacOSVirtualNetworkDevice(cfg)
+	}
 	if goos != "windows" {
 		return nil
 	}
@@ -1628,7 +1637,7 @@ func (a *App) ensureVirtualNetworkDeviceForPlatform(goos string, cfg virtualnet.
 		return nil
 	}
 
-	tunConfig, err := tunConfigFromVirtualNetworkConfig(cfg)
+	tunConfig, err := tunConfigFromVirtualNetworkConfig(*cfg)
 	if err != nil {
 		return err
 	}

@@ -11,7 +11,7 @@ param(
 
   [string]$RejectedOrigin = "https://evil.example.invalid",
 
-  [string]$ReportPath = "",
+  [string]$ReportPath = "dist/verification/dashboard-https-latest.json",
 
   [switch]$AllowInsecureHttpCredentials
 )
@@ -21,6 +21,15 @@ $ErrorActionPreference = "Stop"
 $CHECK_TIMEOUT_SECONDS = 15
 $VERIFY_ACL_ID = "verify-dashboard-" + [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 $VERIFY_ALERT_RULE_ID = "verify-alert-" + [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+$repositoryRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+if ([string]::IsNullOrWhiteSpace($ReportPath)) {
+  $ReportPath = "dist/verification/dashboard-https-latest.json"
+}
+$reportFullPath = if ([System.IO.Path]::IsPathRooted($ReportPath)) {
+  $ReportPath
+} else {
+  Join-Path $repositoryRoot $ReportPath
+}
 
 function Test-IsLoopbackHost {
   param([string]$HostName)
@@ -223,17 +232,18 @@ try {
 $summary = [ordered]@{
   generated_at = [DateTimeOffset]::UtcNow.ToString("o")
   base_url = $BaseUrl
+  report_path = $reportFullPath
   passed = ($results | Where-Object { -not $_.passed }).Count -eq 0
   results = $results
 }
 
 $json = $summary | ConvertTo-Json -Depth 8
-if (-not [string]::IsNullOrWhiteSpace($ReportPath)) {
-  $reportDirectory = Split-Path -Parent $ReportPath
+if (-not [string]::IsNullOrWhiteSpace($reportFullPath)) {
+  $reportDirectory = Split-Path -Parent $reportFullPath
   if (-not [string]::IsNullOrWhiteSpace($reportDirectory)) {
     New-Item -ItemType Directory -Path $reportDirectory -Force | Out-Null
   }
-  $json | Set-Content -Path $ReportPath -Encoding UTF8
+  $json | Set-Content -Path $reportFullPath -Encoding UTF8
 }
 
 Write-Output $json

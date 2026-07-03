@@ -1,8 +1,21 @@
 # 更新日志
 
+## v0.6.4-alpha
+
+- 版本入口统一升级到 `v0.6.4-alpha` / `0.6.4-alpha`，同步桌面端、Dashboard、CLI、服务端打包脚本、前端包元数据、部署示例、发布流程和文档站口径。
+- macOS System TUN 完成 LaunchDaemon helper 开发接入：`nextunnel-helper` 以 root 运行，监听 `/var/run/nextunnel/helper.sock`，通过受控协议创建 utun、fd passing 交给桌面端，并应用/清理路由。
+- macOS helper 限制 socket 权限为 `root:admin 0660`，校验 peer credential，拒绝任意 shell 执行和 `0.0.0.0/0`、`::/0` 默认路由。
+- 桌面端、P2P/TUN 预检、网络页和验证器接入 macOS helper 状态；helper 可用时不再把 macOS System TUN 标为 `privilege_required`。
+- `scripts/package-macos.sh` 新增 helper 构建、LaunchDaemon plist、System TUN `.pkg`、签名/公证参数和 SHA256 产物；DMG 继续作为 P2P/Relay-only 安装形态。
+- `scripts/verify-p2p-tun.ps1` 新增 `-MacUseHelper`，生产验证口径改为 signed/notarized pkg 安装并归档 `tun-macos-latest.json` 后，才能声明 macOS System TUN 真实环境功能验收通过。
+- 发布边界：本版本可声明 macOS System TUN helper 链路开发完成、本地测试通过；缺少 Developer ID 签名/公证、pkg 实机安装和 JSON 报告前，不声明生产通过。
+
 ## v0.6.3-alpha
 
 - 版本入口统一升级到 `v0.6.3-alpha` / `0.6.3-alpha`，同步桌面端、Dashboard、CLI、服务端打包脚本、前端包元数据、部署示例、发布流程和文档站口径。
+- 新增 `scripts/verify-scripts-static.ps1`，在 CI 中解析 PowerShell 脚本、检查关键脚本参数契约和 Bash 脚本语法，并把 JSON 报告上传为 `dist/verification/` artifact。
+- 验证报告默认命名统一为 `dashboard-https-latest.json`、`dashboard-ssh-latest.json`、`tun-*.json`、`ebpf-benchmark-latest.json`、`edge-rehearsal-latest.json`，便于发布归档。
+- macOS System TUN 新增 LaunchDaemon helper 链路：`nextunnel-helper` 通过 `/var/run/nextunnel/helper.sock` 创建 utun、应用/清理路由，DMG 保持 P2P/Relay-only，PKG 用于安装 System TUN helper。
 - 明亮主题下新增专用 `logo-light.png` 图标，侧边栏和关于页按最终解析主题选择图标，暗色主题继续使用原 `logo.png`。
 - 补齐明亮主题标题栏、侧边栏和 logo 容器样式，提升浅色模式下的视觉一致性和对比度。
 - 修正 GitHub Release workflow 的桌面打包参数，使其匹配当前自定义 Wails 安装器打包脚本。

@@ -17,7 +17,7 @@ const (
 )
 
 // AppVersion 由发布脚本通过 -ldflags 注入；默认值用于本地开发和测试。
-var AppVersion = "0.6.3-alpha"
+var AppVersion = "0.6.4-alpha"
 
 type InstallOptions struct {
 	InstallDir              string `json:"install_dir"`

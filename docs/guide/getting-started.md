@@ -37,11 +37,11 @@ Linux 服务器需要：
 
 ```bash
 curl -fL -o /tmp/nextunnel-install.sh \
-  https://github.com/Lee-zg/NexTunnel/releases/download/v0.6.3-alpha/install.sh
+  https://github.com/Lee-zg/NexTunnel/releases/download/v0.6.4-alpha/install.sh
 chmod +x /tmp/nextunnel-install.sh
 
 sudo /tmp/nextunnel-install.sh install \
-  --version v0.6.3-alpha \
+  --version v0.6.4-alpha \
   --public-host example.com \
   --relay-token <strong-relay-token> \
   --control-token <strong-control-token> \
@@ -66,11 +66,11 @@ sudo /opt/nextunnel/deploy/server/install.sh logs --no-log-follow --log-lines 80
 
 ```powershell
 Invoke-WebRequest `
-  -Uri "https://github.com/Lee-zg/NexTunnel/releases/download/v0.6.3-alpha/install.ps1" `
+  -Uri "https://github.com/Lee-zg/NexTunnel/releases/download/v0.6.4-alpha/install.ps1" `
   -OutFile ".\install.ps1"
 
 .\install.ps1 -Action install `
-  -Version v0.6.3-alpha `
+  -Version v0.6.4-alpha `
   -PublicHost "example.com" `
   -RelayToken "<strong-relay-token>" `
   -ControlToken "<strong-control-token>" `
@@ -222,8 +222,8 @@ sudo ./install.sh install \
 
 ```bash
 sudo ./install.sh install \
-  --version v0.6.3-alpha \
-  --release-base-url https://cos.example.com/nextunnel/v0.6.3-alpha \
+  --version v0.6.4-alpha \
+  --release-base-url https://cos.example.com/nextunnel/v0.6.4-alpha \
   --sha256 <sha256>
 ```
 

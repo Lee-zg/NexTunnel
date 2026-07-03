@@ -5,7 +5,7 @@ param(
   [string]$Subnet = "10.7.0.0/24",
   [string]$Gateway = "10.7.0.1",
   [string]$Route = "10.7.0.0/24",
-  [string]$ReportPath = "dist/verification/tun-report.json",
+  [string]$ReportPath = "dist/verification/tun-local-latest.json",
   [switch]$SkipRouteApply
 )
 
@@ -13,7 +13,11 @@ $ErrorActionPreference = "Stop"
 
 $repositoryRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $desktopRoot = Join-Path $repositoryRoot "desktop"
-$reportFullPath = Join-Path $repositoryRoot $ReportPath
+$reportFullPath = if ([System.IO.Path]::IsPathRooted($ReportPath)) {
+  $ReportPath
+} else {
+  Join-Path $repositoryRoot $ReportPath
+}
 $reportDirectory = Split-Path -Parent $reportFullPath
 
 if (-not (Test-Path $reportDirectory)) {

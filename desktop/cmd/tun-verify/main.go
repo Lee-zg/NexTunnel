@@ -75,13 +75,14 @@ func runVerification() (report verifyReport) {
 
 	report.add("tun_preflight", report.Capabilities.KernelTUNReady, platformCapabilityDetail(report.Capabilities))
 
-	device, err := p2p.CreateKernelTUN(p2p.TUNConfig{
+	tunConfig := p2p.TUNConfig{
 		Name:    interfaceName,
 		MTU:     mtu,
 		LocalIP: net.ParseIP(virtualIP),
 		PeerIP:  net.ParseIP(peerIP),
 		Subnet:  parsedSubnet,
-	})
+	}
+	device, helperBacked, err := createVerificationTUN(tunConfig)
 	if err != nil {
 		report.add("create_tun", false, err.Error())
 		return report
@@ -99,7 +100,7 @@ func runVerification() (report verifyReport) {
 		return report
 	}
 
-	manager := virtualnet.NewManager(nil, nil)
+	manager := newVerificationVirtualNetworkManager(helperBacked)
 	state, err := manager.Apply(virtualnet.Config{
 		NodeID:    "tun-verify",
 		VirtualIP: virtualIP,

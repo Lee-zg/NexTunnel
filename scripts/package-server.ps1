@@ -1,5 +1,5 @@
 param(
-  [string]$Version = "v0.6.3-alpha",
+  [string]$Version = "v0.6.4-alpha",
   [switch]$SkipWeb
 )
 
@@ -102,6 +102,7 @@ function New-ServerArchive {
   Copy-Item -LiteralPath (Join-Path $repositoryRoot "scripts\verify-dashboard-ssh.ps1") -Destination (Join-Path $packageScriptsDir "verify-dashboard-ssh.ps1") -Force
   Copy-Item -LiteralPath (Join-Path $repositoryRoot "scripts\verify-edge-rehearsal.ps1") -Destination (Join-Path $packageScriptsDir "verify-edge-rehearsal.ps1") -Force
   Copy-Item -LiteralPath (Join-Path $repositoryRoot "scripts\verify-ebpf-linux.sh") -Destination (Join-Path $packageScriptsDir "verify-ebpf-linux.sh") -Force
+  Copy-Item -LiteralPath (Join-Path $repositoryRoot "scripts\verify-scripts-static.ps1") -Destination (Join-Path $packageScriptsDir "verify-scripts-static.ps1") -Force
   Copy-Item -LiteralPath (Join-Path $repositoryRoot "server\internal\ebpf\xdp_forwarder.c") -Destination (Join-Path $packageDir "xdp_forwarder.c") -Force
   @(
     "NexTunnel server package",
@@ -125,6 +126,7 @@ function New-ServerArchive {
     "  scripts/verify-dashboard-ssh.ps1",
     "  scripts/verify-edge-rehearsal.ps1",
     "  scripts/verify-ebpf-linux.sh",
+    "  scripts/verify-scripts-static.ps1",
     "  xdp_forwarder.c"
   ) | Set-Content -Path (Join-Path $packageDir "MANIFEST.txt") -Encoding UTF8
 

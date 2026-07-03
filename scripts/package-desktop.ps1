@@ -1,5 +1,5 @@
 param(
-  [string]$Version = "v0.6.3-alpha",
+  [string]$Version = "v0.6.4-alpha",
   [string]$Platform = "windows/amd64",
   [ValidateSet("bundled", "download", "manual")]
   [string]$WintunMode = "bundled",

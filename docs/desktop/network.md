@@ -11,6 +11,7 @@
 - 真实内核 TUN 是否就绪
 - 是否需要管理员权限
 - Wintun DLL 状态
+- macOS LaunchDaemon helper 状态
 - NAT 类型和公网映射
 - 虚拟 IP、网关、子网、MTU
 - 最近执行的系统路由命令
@@ -37,6 +38,17 @@ Windows 系统路由 TUN 需要：
 - 可创建或复用 `nextunnel0` 适配器
 
 网络页会显示 DLL 路径和架构状态。缺失时可以执行“修复 Wintun”。需要管理员权限时，可以使用“以管理员身份重启修复”入口。
+
+## macOS LaunchDaemon Helper
+
+macOS 不需要第三方 TUN 驱动，系统内置 `utun`。生产阻塞点是普通桌面进程不能稳定创建 `utun` 和写系统路由，因此 System TUN 由 signed/notarized pkg 安装的 LaunchDaemon helper 处理：
+
+- helper 路径：`/Library/PrivilegedHelperTools/nextunnel-helper`
+- LaunchDaemon：`/Library/LaunchDaemons/com.nextunnel.helper.plist`
+- Socket：`/var/run/nextunnel/helper.sock`
+- 权限：root 运行，socket 为 `root:admin 0660`
+
+网络页会显示 helper 是否运行、协议版本、socket 路径和签名状态。未安装 pkg 时，macOS 只能使用 Relay/P2P 能力，不应声明系统路由 TUN 生产可用。
 
 ## 应用虚拟网络路由
 
@@ -71,7 +83,7 @@ netsh interface ip set address name=nextunnel0 static 10.7.0.2 255.255.255.0
 netsh interface ipv4 add route prefix=10.7.0.0/24 interface=nextunnel0 nexthop=10.7.0.1 metric=100 store=active
 ```
 
-Linux/macOS 会使用对应平台的 `ip`、`ifconfig` 或 `route` 命令。
+Linux 会使用 `ip` 命令。macOS 安装 helper 后由 LaunchDaemon 执行受控的 `ifconfig`/`route` 操作；未安装 helper 时，验证环境可用 `sudo -n`，桌面生产体验不依赖交互式 sudo。
 
 ## 常见错误
 
@@ -86,7 +98,7 @@ Linux/macOS 会使用对应平台的 `ip`、`ifconfig` 或 `route` 命令。
 
 ### macOS 应用 TUN 失败
 
-v0.6.3-alpha 中 macOS 系统路由 TUN 需要 root/sudo、授权 helper 或 LaunchDaemon。没有这些外部条件时，只声明 P2P/Relay 可用，系统路由 TUN 按预览能力处理。
+v0.6.4-alpha 中 macOS 系统路由 TUN 需要 root/sudo、授权 helper 或 LaunchDaemon。没有这些外部条件时，只声明 P2P/Relay 可用，系统路由 TUN 按预览能力处理。
 
 ### Linux TUN 失败
 
