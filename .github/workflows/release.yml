@@ -121,9 +121,77 @@ jobs:
         working-directory: desktop/frontend
         run: npm ci
 
+      - name: Validate macOS signing secrets
+        shell: bash
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+          MACOS_DEVELOPER_ID_APPLICATION: ${{ secrets.MACOS_DEVELOPER_ID_APPLICATION }}
+          MACOS_DEVELOPER_ID_INSTALLER: ${{ secrets.MACOS_DEVELOPER_ID_INSTALLER }}
+          MACOS_NOTARY_APPLE_ID: ${{ secrets.MACOS_NOTARY_APPLE_ID }}
+          MACOS_NOTARY_TEAM_ID: ${{ secrets.MACOS_NOTARY_TEAM_ID }}
+          MACOS_NOTARY_PASSWORD: ${{ secrets.MACOS_NOTARY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          # macOS 发布资产必须签名和公证，缺少任一 secret 时直接失败。
+          required_vars=(
+            MACOS_CERTIFICATE_P12
+            MACOS_CERTIFICATE_PASSWORD
+            MACOS_KEYCHAIN_PASSWORD
+            MACOS_DEVELOPER_ID_APPLICATION
+            MACOS_DEVELOPER_ID_INSTALLER
+            MACOS_NOTARY_APPLE_ID
+            MACOS_NOTARY_TEAM_ID
+            MACOS_NOTARY_PASSWORD
+          )
+          missing="false"
+          for var_name in "${required_vars[@]}"; do
+            if [[ -z "${!var_name:-}" ]]; then
+              echo "::error::Missing required secret ${var_name}"
+              missing="true"
+            fi
+          done
+          if [[ "$missing" == "true" ]]; then
+            exit 1
+          fi
+
+      - name: Import Developer ID certificates
+        shell: bash
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/nextunnel-signing.keychain-db"
+          CERTIFICATE_PATH="$RUNNER_TEMP/nextunnel-developer-id.p12"
+          # 将 CI secret 中的 P12 导入临时 keychain，避免污染 runner 默认钥匙串。
+          if ! printf '%s' "$MACOS_CERTIFICATE_P12" | base64 --decode > "$CERTIFICATE_PATH" 2>/dev/null; then
+            printf '%s' "$MACOS_CERTIFICATE_P12" | base64 -D > "$CERTIFICATE_PATH"
+          fi
+          security create-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$MACOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security default-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
       - name: Package macOS packages
         shell: bash
-        run: bash scripts/package-macos.sh --version "$RELEASE_VERSION"
+        env:
+          MACOS_DEVELOPER_ID_APPLICATION: ${{ secrets.MACOS_DEVELOPER_ID_APPLICATION }}
+          MACOS_DEVELOPER_ID_INSTALLER: ${{ secrets.MACOS_DEVELOPER_ID_INSTALLER }}
+          MACOS_NOTARY_APPLE_ID: ${{ secrets.MACOS_NOTARY_APPLE_ID }}
+          MACOS_NOTARY_TEAM_ID: ${{ secrets.MACOS_NOTARY_TEAM_ID }}
+          MACOS_NOTARY_PASSWORD: ${{ secrets.MACOS_NOTARY_PASSWORD }}
+        run: bash scripts/package-macos.sh --version "$RELEASE_VERSION" --sign --notarize
+
+      - name: Delete signing keychain
+        if: always()
+        shell: bash
+        run: security delete-keychain "$RUNNER_TEMP/nextunnel-signing.keychain-db" >/dev/null 2>&1 || true
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2

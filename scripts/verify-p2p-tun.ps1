@@ -29,6 +29,7 @@ $REMOTE_LOG = "$REMOTE_DIR/responder.log"
 $REMOTE_PID = "$REMOTE_DIR/responder.pid"
 $SSH_CONNECT_TIMEOUT_SECONDS = 8
 $WINDOWS_CALLBACK_PROBE_PATH = "/nextunnel-p2p-tun-probe"
+$MAC_TEMPORARY_ROUTE_DESTINATION = "10.77.0.1"
 
 $repositoryRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $desktopRoot = Join-Path $repositoryRoot "desktop"
@@ -612,8 +613,74 @@ function Fetch-MacReport {
 
 function Add-KeepTemporaryAccessResult {
   if ($KeepTemporaryAccess -and -not $CleanupOnly) {
-    Add-Result -Name "mac_temporary_access_retained" -Passed $true -Detail "调试模式保留临时公钥和 $REMOTE_DIR；完成后运行 -CleanupOnly 回收"
+    $passed = -not $MacUseHelper
+    Add-Result -Name "mac_temporary_access_retained" -Passed $passed -Detail "调试模式保留临时公钥和 $REMOTE_DIR；生产 helper 验收必须运行清理"
   }
+}
+
+function Get-ReportCheck {
+  param(
+    [object]$Report,
+    [string]$Name
+  )
+  if ($null -eq $Report -or $null -eq $Report.checks) {
+    return $null
+  }
+  foreach ($check in @($Report.checks)) {
+    if ($check.name -eq $Name) {
+      return $check
+    }
+  }
+  return $null
+}
+
+function Add-RequiredMacReportCheck {
+  param(
+    [object]$Report,
+    [string]$Name
+  )
+  $check = Get-ReportCheck -Report $Report -Name $Name
+  if ($null -eq $check) {
+    Add-Result -Name "macos_helper_check_$Name" -Passed $false -Detail "macOS 报告缺少必需检查项 $Name"
+    return $false
+  }
+  $passed = [bool]$check.passed
+  Add-Result -Name "macos_helper_check_$Name" -Passed $passed -Detail $check.detail
+  return $passed
+}
+
+function Assert-MacHelperReport {
+  if (-not $MacUseHelper) {
+    return
+  }
+  # helper 模式是生产验收路径，必须同时证明 helper、真实 utun 和路由回收都成功。
+  if ($SkipRouteApply) {
+    Add-Result -Name "macos_helper_route_apply_required" -Passed $false -Detail "-MacUseHelper 生产验收不能同时跳过路由应用"
+  }
+  if ($null -eq $macReport) {
+    Add-Result -Name "macos_helper_report_required" -Passed $false -Detail "$macReportPath 不存在或无法解析"
+    return
+  }
+  Add-Result -Name "macos_helper_report_passed" -Passed ([bool]$macReport.passed) -Detail $macReportPath
+  [void](Add-RequiredMacReportCheck -Report $macReport -Name "tun_preflight")
+  $tunCreatePassed = Add-RequiredMacReportCheck -Report $macReport -Name "tun_create"
+  $tunCreate = Get-ReportCheck -Report $macReport -Name "tun_create"
+  if ($tunCreatePassed -and $null -ne $tunCreate) {
+    $usesKernelTun = ($tunCreate.detail -notmatch "name=netTun")
+    Add-Result -Name "macos_helper_real_utun" -Passed $usesKernelTun -Detail $tunCreate.detail
+  }
+  [void](Add-RequiredMacReportCheck -Report $macReport -Name "route_apply")
+  [void](Add-RequiredMacReportCheck -Report $macReport -Name "route_reset")
+}
+
+function Test-MacTemporaryRouteCleaned {
+  if (-not $MacUseHelper -or $SkipRouteApply -or -not $macKeyLoginAvailable) {
+    return
+  }
+  # route_reset 之后再查一次 macOS 路由表，避免只依赖应用自身报告。
+  $routeProbe = "netstat -rn -f inet | awk '" + '$1 == "' + $MAC_TEMPORARY_ROUTE_DESTINATION + '" { found=1 } END { exit found ? 1 : 0 }' + "'"
+  $probe = Invoke-NativeCommand -Name "ssh" -Arguments (Get-SshArguments $routeProbe) -AllowFailure
+  Add-Result -Name "macos_temporary_route_cleaned" -Passed ($probe.exit_code -eq 0) -Detail ("route=$MAC_TEMPORARY_ROUTE_DESTINATION exit_code=" + $probe.exit_code)
 }
 
 function Wait-ForRemoteReport {
@@ -658,6 +725,30 @@ ${sudoPrefix}rm -rf '$REMOTE_DIR'
 "@
   $cleanup = Invoke-NativeCommand -Name "ssh" -Arguments (Get-SshArguments $cleanupScript) -InputText $temporaryPublicKeyText -AllowFailure
   Add-Result -Name "mac_temporary_cleanup" -Passed ($cleanup.exit_code -eq 0) -Detail ("exit_code=" + $cleanup.exit_code)
+  if ($cleanup.exit_code -eq 0) {
+    Test-RemoteCleanupVerified -TemporaryPublicKeyText $temporaryPublicKeyText
+  }
+}
+
+function Test-RemoteCleanupVerified {
+  param([string]$TemporaryPublicKeyText)
+  # 二次确认临时 SSH 公钥和远端验证目录都已删除，作为生产验收报告的一部分。
+  $verifyScript = @"
+set -eu
+tmpfile="`$(mktemp)"
+cat | perl -pe "s/\r//g" > "`$tmpfile"
+if [ -f "`$HOME/.ssh/authorized_keys" ] && grep -qxF -f "`$tmpfile" "`$HOME/.ssh/authorized_keys"; then
+  rm -f "`$tmpfile"
+  exit 10
+fi
+rm -f "`$tmpfile"
+if [ -e '$REMOTE_DIR' ]; then
+  exit 11
+fi
+exit 0
+"@
+  $verify = Invoke-NativeCommand -Name "ssh" -Arguments (Get-SshArguments $verifyScript) -InputText $TemporaryPublicKeyText -AllowFailure
+  Add-Result -Name "mac_temporary_cleanup_verified" -Passed ($verify.exit_code -eq 0) -Detail ("exit_code=" + $verify.exit_code)
 }
 
 function Write-Summary {
@@ -764,6 +855,8 @@ try {
   if ($null -ne $macReport) {
     Add-Result -Name "macos_report_passed" -Passed ([bool]$macReport.passed) -Detail $macReportPath
   }
+  Assert-MacHelperReport
+  Test-MacTemporaryRouteCleaned
 } catch {
   Add-Result -Name "verify_p2p_tun_unhandled_error" -Passed $false -Detail $_.Exception.Message
 } finally {

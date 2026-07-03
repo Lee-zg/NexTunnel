@@ -46,6 +46,11 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
   exit 1
 fi
 
+if [[ "$NOTARIZE" == "true" && "$SIGN" != "true" ]]; then
+  echo "启用 notarization 必须同时启用 --sign，避免公证未签名产物。" >&2
+  exit 1
+fi
+
 if [[ -z "${VERSION// }" ]]; then
   echo "Version 不能为空" >&2
   exit 1
@@ -96,6 +101,94 @@ HELPER_PLIST_SOURCE="$MACOS_PACKAGING_ROOT/com.nextunnel.helper.plist"
 PKG_ROOT="$DIST_ROOT/${TARGET_NAME}-pkgroot"
 PKG_SCRIPTS_ROOT="$DIST_ROOT/${TARGET_NAME}-pkg-scripts"
 PKG_PATH="$DIST_ROOT/${TARGET_NAME}.pkg"
+
+if [[ "$NOTARIZE" == "true" ]]; then
+  SIGNING_STATE="notarized"
+elif [[ "$SIGN" == "true" ]]; then
+  SIGNING_STATE="signed"
+fi
+
+require_tool() {
+  local tool_name="$1"
+  if ! command -v "$tool_name" >/dev/null 2>&1; then
+    echo "未找到必需命令：$tool_name" >&2
+    exit 1
+  fi
+}
+
+require_env_vars() {
+  local var_name
+  for var_name in "$@"; do
+    if [[ -z "${!var_name:-}" ]]; then
+      echo "缺少必需环境变量：$var_name" >&2
+      exit 1
+    fi
+  done
+}
+
+preflight_tools_and_secrets() {
+  local base_tools=(go npm wails hdiutil shasum awk)
+  if [[ "$TARGET_ARCH" == "universal" ]]; then
+    base_tools+=(lipo)
+  fi
+  if [[ "$BUILD_PKG" == "true" ]]; then
+    base_tools+=(pkgbuild)
+  fi
+  if [[ "$SIGN" == "true" ]]; then
+    base_tools+=(codesign pkgutil spctl)
+    require_env_vars MACOS_DEVELOPER_ID_APPLICATION
+    if [[ "$BUILD_PKG" == "true" ]]; then
+      require_env_vars MACOS_DEVELOPER_ID_INSTALLER
+    fi
+  fi
+  if [[ "$NOTARIZE" == "true" ]]; then
+    base_tools+=(xcrun)
+    require_env_vars MACOS_NOTARY_APPLE_ID MACOS_NOTARY_TEAM_ID MACOS_NOTARY_PASSWORD
+  fi
+  local tool_name
+  for tool_name in "${base_tools[@]}"; do
+    require_tool "$tool_name"
+  done
+}
+
+verify_code_signature() {
+  local path="$1"
+  local label="$2"
+  # 签名验证放在打包前执行，避免把不可公证的 helper 或 app 写入 DMG/PKG。
+  codesign --verify --strict --verbose=2 "$path"
+  codesign --display --verbose=2 "$path" >/dev/null
+  echo "$label 签名验证通过：$path"
+}
+
+verify_pkg_signature() {
+  local pkg_path="$1"
+  # pkgutil 先校验证书链；安装评估在公证后再执行，避免 Gatekeeper 状态未刷新。
+  pkgutil --check-signature "$pkg_path"
+  echo "PKG 签名验证通过：$pkg_path"
+}
+
+assess_pkg_install() {
+  local pkg_path="$1"
+  # spctl 校验最终安装评估，signed/notarized 发布必须通过这一关。
+  spctl -a -vv -t install "$pkg_path"
+  echo "PKG 安装评估通过：$pkg_path"
+}
+
+notarize_and_staple() {
+  local artifact_path="$1"
+  local label="$2"
+  # notarytool --wait 直接等待 Apple 公证结果，stapler validate 确认 ticket 已写入产物。
+  xcrun notarytool submit "$artifact_path" \
+    --apple-id "$MACOS_NOTARY_APPLE_ID" \
+    --team-id "$MACOS_NOTARY_TEAM_ID" \
+    --password "$MACOS_NOTARY_PASSWORD" \
+    --wait
+  xcrun stapler staple "$artifact_path"
+  xcrun stapler validate "$artifact_path"
+  echo "$label 公证与 stapler 校验通过：$artifact_path"
+}
+
+preflight_tools_and_secrets
 
 build_helper_for_arch() {
   local arch="$1"
@@ -162,15 +255,11 @@ fi
 build_macos_helper
 
 if [[ "$SIGN" == "true" ]]; then
-  if [[ -z "${MACOS_DEVELOPER_ID_APPLICATION:-}" ]]; then
-    echo "启用签名需要设置 MACOS_DEVELOPER_ID_APPLICATION。" >&2
-    exit 1
-  fi
   # 使用 hardened runtime，为后续 notarization 做准备。
   codesign --force --options runtime --timestamp --sign "$MACOS_DEVELOPER_ID_APPLICATION" "$HELPER_TARGET"
   codesign --force --deep --options runtime --timestamp --sign "$MACOS_DEVELOPER_ID_APPLICATION" "$APP_TARGET"
-  SIGNING_STATE="signed"
-  HELPER_SIGNED_VALUE="true"
+  verify_code_signature "$HELPER_TARGET" "nextunnel-helper"
+  verify_code_signature "$APP_TARGET" "NexTunnel.app"
 fi
 
 cp -R "$APP_TARGET" "$DMG_STAGING/NexTunnel.app"
@@ -209,23 +298,7 @@ hdiutil create \
   "$DMG_PATH"
 
 if [[ "$NOTARIZE" == "true" ]]; then
-  required_vars=(MACOS_NOTARY_APPLE_ID MACOS_NOTARY_TEAM_ID MACOS_NOTARY_PASSWORD)
-  for var_name in "${required_vars[@]}"; do
-    if [[ -z "${!var_name:-}" ]]; then
-      echo "启用 notarization 需要设置 $var_name。" >&2
-      exit 1
-    fi
-  done
-  xcrun notarytool submit "$DMG_PATH" \
-    --apple-id "$MACOS_NOTARY_APPLE_ID" \
-    --team-id "$MACOS_NOTARY_TEAM_ID" \
-    --password "$MACOS_NOTARY_PASSWORD" \
-    --wait
-  xcrun stapler staple "$DMG_PATH"
-  SIGNING_STATE="notarized"
-  sed -i '' "s/^Signing:.*/Signing: $SIGNING_STATE/" "$MANIFEST_PATH"
-  cp "$MANIFEST_PATH" "$DMG_STAGING/MANIFEST.txt"
-  cp "$MANIFEST_PATH" "$RELEASE_MANIFEST_PATH"
+  notarize_and_staple "$DMG_PATH" "DMG"
 fi
 
 shasum -a 256 "$DMG_PATH" | awk '{print tolower($1) "  " $2}' > "$DMG_PATH.sha256"
@@ -268,20 +341,17 @@ EOF
     --install-location "/"
   )
   if [[ "$SIGN" == "true" ]]; then
-    if [[ -z "${MACOS_DEVELOPER_ID_INSTALLER:-}" ]]; then
-      echo "启用 pkg 签名需要设置 MACOS_DEVELOPER_ID_INSTALLER。" >&2
-      exit 1
-    fi
     PKGBUILD_ARGS+=(--sign "$MACOS_DEVELOPER_ID_INSTALLER")
   fi
   pkgbuild "${PKGBUILD_ARGS[@]}" "$PKG_PATH"
+  if [[ "$SIGN" == "true" ]]; then
+    verify_pkg_signature "$PKG_PATH"
+  fi
   if [[ "$NOTARIZE" == "true" ]]; then
-    xcrun notarytool submit "$PKG_PATH" \
-      --apple-id "$MACOS_NOTARY_APPLE_ID" \
-      --team-id "$MACOS_NOTARY_TEAM_ID" \
-      --password "$MACOS_NOTARY_PASSWORD" \
-      --wait
-    xcrun stapler staple "$PKG_PATH"
+    notarize_and_staple "$PKG_PATH" "PKG"
+  fi
+  if [[ "$SIGN" == "true" ]]; then
+    assess_pkg_install "$PKG_PATH"
   fi
   shasum -a 256 "$PKG_PATH" | awk '{print tolower($1) "  " $2}' > "$PKG_PATH.sha256"
   echo "macOS System TUN PKG 已生成：$PKG_PATH"

@@ -27,6 +27,20 @@ macOS DMG 只能在 macOS 本机或 macOS runner 构建：
 bash scripts/package-macos.sh --version v0.6.4-alpha
 ```
 
+Developer ID 签名和公证使用同一脚本入口。执行前需要在本机 Keychain 或 CI 临时 Keychain 中具备 Developer ID Application / Installer 证书，并设置 notarytool 凭据：
+
+```bash
+export MACOS_DEVELOPER_ID_APPLICATION="Developer ID Application: Example Inc (TEAMID)"
+export MACOS_DEVELOPER_ID_INSTALLER="Developer ID Installer: Example Inc (TEAMID)"
+export MACOS_NOTARY_APPLE_ID="apple-id@example.com"
+export MACOS_NOTARY_TEAM_ID="TEAMID"
+export MACOS_NOTARY_PASSWORD="<app-specific-password-or-keychain-profile-password>"
+
+MACOS_SIGN=true MACOS_NOTARIZE=true make package-macos VERSION=v0.6.4-alpha
+```
+
+脚本会对 `.app`、`nextunnel-helper`、`.pkg` 执行签名验证，对 `.dmg` 和 `.pkg` 执行 notarization、staple 和 stapler validate；任一步失败都不会上传可宣称生产通过的 macOS System TUN 产物。
+
 ## Windows Wintun 打包
 
 Windows 自定义 Wails 安装器默认使用 `-WintunMode bundled`：
@@ -65,6 +79,21 @@ zip 便携包缺少 DLL 时，桌面端网络页会显示 Wintun 状态，并提
 ## GitHub Release
 
 推送 `v0.6.4-alpha` 标签会触发 `.github/workflows/release.yml`。
+
+macOS Release job 默认按 signed/notarized 发布处理，必须先配置以下 GitHub Secrets：
+
+```text
+MACOS_CERTIFICATE_P12
+MACOS_CERTIFICATE_PASSWORD
+MACOS_KEYCHAIN_PASSWORD
+MACOS_DEVELOPER_ID_APPLICATION
+MACOS_DEVELOPER_ID_INSTALLER
+MACOS_NOTARY_APPLE_ID
+MACOS_NOTARY_TEAM_ID
+MACOS_NOTARY_PASSWORD
+```
+
+`MACOS_CERTIFICATE_P12` 是同时包含 Developer ID Application 和 Developer ID Installer 私钥证书的 base64 P12。缺少任一 secret 时 macOS job 会失败，避免上传未签名或未公证的 System TUN pkg。
 
 发布资产：
 
@@ -156,6 +185,7 @@ sudo INTERFACE_NAME=eth0 make verify-ebpf-linux
 - Windows 自定义 Wails 安装器可提权启动，显示安装位置、桌面快捷方式、payload/WebView2/Wintun 状态和完成后立即运行选项。
 - Windows zip 包缺少 DLL 时，网络页能显示 Wintun 状态和修复入口。
 - macOS DMG 可挂载，包含 `NexTunnel.app`、Applications 链接、README 和 manifest。
+- macOS PKG 可通过 `pkgutil --check-signature`、`spctl -a -t install` 和 `xcrun stapler validate`，安装后 `launchctl print system/com.nextunnel.helper` 与 `test -S /var/run/nextunnel/helper.sock` 通过。
 - `install.sh` 和 `install.ps1` 可从 Release 下载。
 - Linux 一键安装后 `nextunnel server health` 通过。
 - Dashboard HTTPS 或 SSH 隧道验证通过。

@@ -133,6 +133,34 @@ function Test-ParameterContract {
   }
 }
 
+function Test-BashCommandUsesWsl {
+  param([object]$CommandInfo)
+
+  if ($null -eq $CommandInfo -or [string]::IsNullOrWhiteSpace($CommandInfo.Source)) {
+    return $false
+  }
+  return $CommandInfo.Source -match "\\Windows\\System32\\bash.exe$" -or $CommandInfo.Source -match "\\System32\\bash.exe$"
+}
+
+function ConvertTo-BashPath {
+  param(
+    [string]$Path,
+    [bool]$UsesWsl
+  )
+
+  if (-not $UsesWsl) {
+    return $Path
+  }
+  $fullPath = [System.IO.Path]::GetFullPath($Path)
+  if ($fullPath -match '^([A-Za-z]):\\(.*)$') {
+    $drive = $Matches[1].ToLowerInvariant()
+    $rest = $Matches[2] -replace '\\', '/'
+    # WSL bash 不能解析 Windows 原生绝对路径，静态校验时转换为 /mnt/<drive>/ 形式。
+    return "/mnt/$drive/$rest"
+  }
+  return $Path
+}
+
 $results = New-Object System.Collections.Generic.List[object]
 
 $powerShellScripts = Get-ChildItem -Path (Join-Path $repositoryRoot "scripts") -Filter "*.ps1" -File | Sort-Object FullName
@@ -232,16 +260,18 @@ $bash = Get-Command "bash" -ErrorAction SilentlyContinue
 if ($null -eq $bash) {
   $results.Add((New-Result -Name "bash_syntax" -Passed $true -Detail "bash not found; skipped")) | Out-Null
 } else {
+  $bashUsesWsl = Test-BashCommandUsesWsl -CommandInfo $bash
   foreach ($relativePath in $bashScripts) {
     $scriptPath = Join-Path $repositoryRoot $relativePath
     if (-not (Test-Path $scriptPath)) {
       $results.Add((New-Result -Name "bash_syntax:$relativePath" -Passed $false -Detail "file not found")) | Out-Null
       continue
     }
-    $output = & $bash.Source -n $scriptPath 2>&1
+    $bashScriptPath = ConvertTo-BashPath -Path $scriptPath -UsesWsl $bashUsesWsl
+    $output = & $bash.Source -n $bashScriptPath 2>&1
     $exitCode = $LASTEXITCODE
     $detail = ($output | ForEach-Object { $_.ToString() }) -join "`n"
-    if ([string]::IsNullOrWhiteSpace($detail)) {
+    if ($exitCode -eq 0 -or [string]::IsNullOrWhiteSpace($detail)) {
       $detail = "ok"
     }
     $results.Add((New-Result -Name "bash_syntax:$relativePath" -Passed ($exitCode -eq 0) -Detail $detail)) | Out-Null

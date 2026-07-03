@@ -2,6 +2,8 @@
 
 VERSION ?= v0.6.4-alpha
 WINTUN_SHA256 ?= 07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51
+MACOS_SIGN ?= false
+MACOS_NOTARIZE ?= false
 MAC_HOST ?= 10.160.166.44
 MAC_USER ?= lizhigang
 MAC_PORT ?= 22
@@ -38,7 +40,10 @@ package-desktop:
 
 ## package-macos: Build macOS desktop DMG and System TUN PKG packages on macOS
 package-macos:
-	bash scripts/package-macos.sh --version $(VERSION)
+	args="--version $(VERSION)"; \
+	if [ "$(MACOS_SIGN)" = "true" ]; then args="$$args --sign"; fi; \
+	if [ "$(MACOS_NOTARIZE)" = "true" ]; then args="$$args --notarize"; fi; \
+	bash scripts/package-macos.sh $$args
 
 ## package-cli: Build CLI release packages
 package-cli:

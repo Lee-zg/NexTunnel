@@ -79,6 +79,17 @@ function Get-SettingValue {
     return $value
 }
 
+function Test-SettingEnabled {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Value
+    )
+
+    # 本地入口复用 CI 语义，只把明确启用的值转换为开关参数。
+    return $Value -in @("1", "true", "yes", "on")
+}
+
 function Assert-SettingValue {
     param(
         [Parameter(Mandatory = $true)]
@@ -299,7 +310,14 @@ function Invoke-Target {
         }
         "package-macos" {
             $version = Get-SettingValue -Name "VERSION" -DefaultValue $DefaultVersion
-            Invoke-RequiredCommand -Command "bash" -Arguments @("scripts/package-macos.sh", "--version", $version)
+            $macosArguments = @("scripts/package-macos.sh", "--version", $version)
+            if (Test-SettingEnabled -Value (Get-SettingValue -Name "MACOS_SIGN" -DefaultValue "")) {
+                $macosArguments += "--sign"
+            }
+            if (Test-SettingEnabled -Value (Get-SettingValue -Name "MACOS_NOTARIZE" -DefaultValue "")) {
+                $macosArguments += "--notarize"
+            }
+            Invoke-RequiredCommand -Command "bash" -Arguments $macosArguments
         }
         "package-cli" {
             $version = Get-SettingValue -Name "VERSION" -DefaultValue $DefaultVersion

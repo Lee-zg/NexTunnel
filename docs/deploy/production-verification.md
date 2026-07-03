@@ -13,6 +13,7 @@
 | Dashboard SSH 隧道 | `dist/verification/dashboard-ssh-latest.json` |
 | 本机 TUN | `dist/verification/tun-local-latest.json` |
 | Windows/macOS P2P/TUN | `dist/verification/tun-windows-macos-latest.json` |
+| macOS helper TUN | `dist/verification/tun-macos-latest.json` |
 | eBPF 功能/压测 | `dist/verification/ebpf-benchmark-latest.json` |
 | Edge/Anycast 演练 | `dist/verification/edge-rehearsal-latest.json` |
 
@@ -105,6 +106,31 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/verify-dashboard-ssh.ps1 `
 - Windows 缺少 System32 或应用目录 `wintun.dll` 时，通过 `NEXTUNNEL_WINTUN_DLL` 或 `-WintunDllPath` 指向官方 DLL；桌面发布包会在打包时自动复制该 DLL。
 - macOS 真实 utun 和路由验证优先使用 pkg 安装的 LaunchDaemon helper；过渡环境可用 `sudo -n`。没有 helper 或 sudo 时只能验证 P2P 候选交换，不应宣称系统路由 TUN 已生产可用。
 
+macOS signed/notarized pkg 安装：
+
+```bash
+sudo installer -pkg "dist/nextunnel-v0.6.4-alpha-darwin-universal.pkg" -target /
+```
+
+安装后检查：
+
+```bash
+pkgutil --pkg-info com.nextunnel.desktop
+launchctl print system/com.nextunnel.helper
+test -S /var/run/nextunnel/helper.sock
+codesign --verify --strict --verbose=2 /Library/PrivilegedHelperTools/nextunnel-helper
+codesign --verify --strict --verbose=2 /Applications/NexTunnel.app
+pkgutil --check-signature "dist/nextunnel-v0.6.4-alpha-darwin-universal.pkg"
+spctl -a -vv -t install "dist/nextunnel-v0.6.4-alpha-darwin-universal.pkg"
+```
+
+若 pkg 已公证，还应确认：
+
+```bash
+xcrun stapler validate "dist/nextunnel-v0.6.4-alpha-darwin-universal.pkg"
+xcrun stapler validate "dist/nextunnel-v0.6.4-alpha-darwin-universal.dmg"
+```
+
 执行：
 
 ```powershell
@@ -124,6 +150,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/verify-p2p-tun.ps1 `
 - Windows 侧真实 Wintun 创建成功，设备名不能是 `netTun`。
 - Windows 侧路由注入成功，结束后无残留路由。
 - macOS 侧 utun 创建成功，路由应用与清理成功。
+- `-MacUseHelper` 模式下，`dist/verification/tun-macos-latest.json` 必须包含通过的 `tun_preflight`、`tun_create`、`route_apply`、`route_reset`，且 `tun_create` 不能是 `name=netTun`。
 - 双端 ICE 候选交换成功，直连优先，必要时可回落 Relay。
 - 临时 SSH 公钥、远端临时文件和临时路由全部清理。
 - 报告会输出 Windows 与 macOS 两端的 JSON 汇总到 `dist/verification/`。
