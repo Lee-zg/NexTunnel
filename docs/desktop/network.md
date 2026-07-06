@@ -41,14 +41,14 @@ Windows 系统路由 TUN 需要：
 
 ## macOS LaunchDaemon Helper
 
-macOS 不需要第三方 TUN 驱动，系统内置 `utun`。生产阻塞点是普通桌面进程不能稳定创建 `utun` 和写系统路由，因此 System TUN 由 signed/notarized pkg 安装的 LaunchDaemon helper 处理：
+macOS 不需要第三方 TUN 驱动，系统内置 `utun`。普通桌面进程不能稳定创建 `utun` 和写系统路由，因此 System TUN 由官方内置可选 LaunchDaemon helper 处理。用户可在网络页点击“安装 Helper”并输入管理员密码，也可执行 `sudo nextunnel helper install`：
 
 - helper 路径：`/Library/PrivilegedHelperTools/nextunnel-helper`
 - LaunchDaemon：`/Library/LaunchDaemons/com.nextunnel.helper.plist`
 - Socket：`/var/run/nextunnel/helper.sock`
 - 权限：root 运行，socket 为 `root:admin 0660`
 
-网络页会显示 helper 是否运行、协议版本、socket 路径和签名状态。未安装 pkg 时，macOS 只能使用 Relay/P2P 能力，不应声明系统路由 TUN 生产可用。
+网络页会显示 helper 是否安装、是否运行、协议版本、socket 路径和签名状态，并提供安装、检查、重启和卸载入口。signed/notarized PKG 只是可选增强；没有 helper 验证报告时，不应声明系统路由 TUN 生产可用。
 
 ## 应用虚拟网络路由
 

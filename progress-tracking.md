@@ -1,8 +1,8 @@
 # NexTunnel 项目进度跟踪
 
-> **最后更新时间**：2026-07-02（v0.6.4-alpha 发布准备：macOS System TUN helper、pkg 打包和版本口径同步）
+> **最后更新时间**：2026-07-03（macOS System TUN 改为开源内置可选 helper：用户提权安装，signed/notarized PKG 降级为增强通道）
 > **当前口径**：按"可验收 MVP / 原型验证 / 占位设计 / 未接入生产链路"统计，避免把单元测试通过等同于生产完成。
-> **本次更新重点**：版本口径更新到 v0.6.4-alpha，已同步桌面端、Dashboard、CLI、服务端打包脚本、前端包元数据、README、部署手册、发布说明和生产验证文档；macOS System TUN 新增 LaunchDaemon helper、pkg 安装链路、预检状态和 `-MacUseHelper` 验证参数。真实生产外部验收清单继续保留，Dashboard HTTPS、Windows/macOS 真实 TUN、eBPF 吞吐/延迟基准和真实多地域 Edge/Anycast 均需外部资源满足后复验。
+> **本次更新重点**：放弃把 Apple Developer Program / signed-notarized PKG 作为 macOS System TUN 默认前置；改为官方内置可选 LaunchDaemon helper，用户通过网络页管理员授权或 `sudo nextunnel helper install` 安装。signed/notarized PKG 保留为更顺滑的分发增强；当前仍无 `dist/verification/tun-macos-latest.json`，macOS System TUN 保持外部阻塞/待实机验收口径。
 
 ---
 
@@ -15,7 +15,7 @@ Phase 3 [智能调度]  ███████████████░░░�
 Phase 4 [全球加速]  ████████████████████  98%  eBPF XDP与Edge远端演练通过，Dashboard HTTPS待域名证书修复
 ─────────────────────────────────────────────
 总体开发进度        ████████████████████  100%
-生产验证进度        ███████████████████░  94%
+生产验证进度        ███████████████████░  95%
 ```
 
 ---
@@ -169,7 +169,7 @@ Phase 4 [全球加速]  ██████████████████�
 |:---:|:---|:---|:---|:---|:---|
 | P0 | Dashboard 公网 HTTPS / CORS / 反向代理 | 未执行最终 HTTPS 验收；SSH 隧道 API 验证已通过 | 备案或公网可访问域名；DNS 控制权；80/443 入站放行；可签发并续期的证书（DNS-01 或可用 HTTP-01）；Nginx/OpenResty 反代配置；Dashboard 管理员凭据；精确 CORS 白名单 | `scripts/verify-dashboard.ps1` | `https://` 健康检查、登录、无效 token 401、CORS 允许/拒绝、节点/ACL/告警 API、静态入口全部通过；不得通过非本机 HTTP 传输管理员密码 |
 | P0 | Windows 真实 TUN / Wintun | 未执行真实系统 TUN 生产验收 | Windows amd64 实机或虚拟机；管理员权限；官方且架构匹配的 `wintun.dll`；桌面安装包随包携带或通过 `NEXTUNNEL_WINTUN_DLL` / `-WintunDllPath` 注入；测试路由不与办公/VPN 网段冲突；安全软件允许创建网卡 | `scripts/verify-tun.ps1`、`scripts/verify-p2p-tun.ps1` | Wintun 设备创建成功且不是 `netTun` 回退；路由注入与清理成功；报告无 `wintun_dll_missing`、`privilege_required` 等阻塞项 |
-| P0 | macOS 真实 TUN / 系统路由 | helper 链路已开发完成；未执行 signed/notarized pkg 实机验收 | macOS 测试机；Developer ID Application/Installer 证书；notarization 账号；pkg 安装权限；LaunchDaemon 可 bootstrap；允许创建 utun；测试路由不冲突；远端 SSH 临时公钥接入；防火墙允许验证流量 | `scripts/verify-p2p-tun.ps1 -MacUseHelper` | helper reachable；utun 创建成功且不是用户态回退；路由应用和清理成功；Windows/macOS 双端候选交换和连通性通过；报告归档为 `dist/verification/tun-macos-latest.json`；无临时 SSH 公钥、临时文件、临时路由残留 |
+| P0 | macOS 真实 TUN / 系统路由 | helper 链路已开发完成；未执行授权实机验收 | macOS 测试机；用户管理员授权或 `sudo nextunnel helper install`；LaunchDaemon 可 bootstrap；允许创建 utun；测试路由不冲突；远端 SSH 临时公钥接入；防火墙允许验证流量；signed/notarized PKG 仅作为可选增强 | `scripts/verify-p2p-tun.ps1 -MacUseHelper` | helper reachable；utun 创建成功且不是用户态回退；路由应用和清理成功；Windows/macOS 双端候选交换和连通性通过；报告归档为 `dist/verification/tun-macos-latest.json`；无临时 SSH 公钥、临时文件、临时路由残留 |
 | P1 | eBPF Linux 吞吐 / 延迟 / CPU 基准 | 已通过真实网卡功能验收；未执行压力基准 | 隔离 Linux 节点或维护窗口；root 或等价 `CAP_BPF`、`CAP_NET_ADMIN`；Linux 6.x 内核；目标网卡名和 XDP 模式确认；`clang`、`llc`、`bpftool`、Go 工具链；可控流量发生器和基线用户态对照 | `scripts/verify-ebpf-linux.sh` 加压测参数或配套压测脚本 | 用户态与 XDP 模式分别记录吞吐、延迟、CPU、规则同步、统计读取和卸载清理；XDP 卸载后网卡无残留程序；报告可支撑 Beta 发布说明 |
 | P1 | 真实多地域 Edge / Anycast | 本地演练和单真实 Control Plane 注册已通过；未执行商用多地域压测 | 至少 2-3 个不同地域节点；各节点公网 IP、时钟同步和安全组放行；真实 Control Plane 地址和 token；GeoIP 数据或静态映射；观测指标采集；可模拟节点故障和恢复 | `scripts/verify-edge-rehearsal.ps1 -RegisterRemote` | 多地域节点注册、心跳、最近节点选择、故障切换、路由偏移和清理全部通过；输出真实拓扑报告 |
 | P1 | 发布包实物验收 | 本地质量门禁通过；需生成并在目标平台安装验证 | Git tag `v0.6.4-alpha`；Release 构建环境；Windows/macOS/Linux 目标机；代码签名/公证资源（如启用）；SHA256 校验产物；官方 Wintun 来源 | `scripts/package-server.ps1`、`scripts/package-cli.ps1`、`scripts/package-desktop.ps1`、`scripts/package-macos.sh` | server、cli、Windows desktop、macOS DMG 产物带 `v0.6.4-alpha` 版本；安装后可启动、连接、查看 Dashboard 状态；校验文件与发布说明一致 |
@@ -180,6 +180,7 @@ Phase 4 [全球加速]  ██████████████████�
 
 | 日期 | 验证项 | 结果 | 备注 |
 |:---:|:---|:---:|:---|
+| 2026-07-03 | macOS System TUN 开源 helper 安装方案调整 | ⚠️ 待实机验收 | 主路径调整为官方内置可选 helper：网络页管理员授权安装，CLI 提供 `nextunnel helper install/status/restart/uninstall`；DMG 内置 helper 资源但不自动写系统目录；signed/notarized PKG 降级为可选增强，不再阻塞开源默认路径。仍未生成 `dist/verification/tun-macos-latest.json`，因此不升级 macOS System TUN 状态 |
 | 2026-06-18 | Dashboard 服务器二 API 端到端验证 | ✅ 通过 | 通过 SSH 本地端口转发访问服务器二 `127.0.0.1:8080`，避免管理员密码走公网 HTTP；验证健康检查、CORS 白名单/拒绝、登录、无效 token 401、节点、统计、ACL 创建/删除、告警规则、指标摄入和静态入口全部通过。报告：`dist/verification/dashboard-server2-ssh-script-report.json` |
 | 2026-06-18 | Dashboard HTTPS 反向代理核查 | ⚠️ 阻塞 | 服务器一 `lee97.top -> 150.158.18.55`，但证书已于 2025-08-10 过期；certbot HTTP-01 续签被 DNSPod webblock 拦截，Let's Encrypt 看到 `https://dnspod.qcloud.com/static/webblock.html?d=lee97.top`，无法完成 HTTPS 验收。服务器二按 IP 访问 443 触发 SNI/TLS 错误，暂无可用 Dashboard HTTPS 域名 |
 | 2026-06-18 | 受限环境阻塞项工程化处理 | ✅ 已实现 | Dashboard 验证脚本默认拒绝向非本机 HTTP 发送管理员密码，新增 `scripts/verify-dashboard-ssh.ps1` 和 `make verify-dashboard-ssh`；服务端发布包包含 SSH 验证脚本；桌面打包支持 `NEXTUNNEL_WINTUN_DLL`/`-WintunDllPath` 随包复制 `wintun.dll`；TUN 预检新增 Windows/macOS/Linux 环境方案提示 |
@@ -208,7 +209,8 @@ Phase 4 [全球加速]  ██████████████████�
 
 | 日期 | 更新内容 | 操作人 |
 |:---:|:---|:---:|
-| 2026-07-02 | **v0.6.4-alpha 发布准备**：统一桌面端、Dashboard、CLI、服务端打包脚本、前端包元数据、部署示例、文档站、发布说明和生产验证口径到 `v0.6.4-alpha` / `0.6.4-alpha`；新增 macOS LaunchDaemon helper、pkg 打包、网络页 helper 状态和 `-MacUseHelper` 验证路径；真实生产通过仍需 signed/notarized pkg 实机报告 | Agent |
+| 2026-07-03 | **macOS System TUN 开源 helper 安装方案调整**：放弃把 Apple Developer Program / signed-notarized PKG 作为默认前置；新增内置可选 helper 安装路径、CLI helper 管理命令、App 内管理员授权安装和 DMG 内置 helper 资源；signed/notarized PKG 保留为可选增强；未生成 `tun-macos-latest.json`，macOS System TUN 继续保持待实机验收/外部阻塞 | Agent |
+| 2026-07-02 | **v0.6.4-alpha 发布准备**：统一桌面端、Dashboard、CLI、服务端打包脚本、前端包元数据、部署示例、文档站、发布说明和生产验证口径到 `v0.6.4-alpha` / `0.6.4-alpha`；新增 macOS LaunchDaemon helper、pkg 打包、网络页 helper 状态和 `-MacUseHelper` 验证路径；真实生产通过仍需 helper 实机报告 | Agent |
 | 2026-06-24 | **v0.6.2-alpha 发布更新**：统一桌面端、Dashboard、CLI、服务端打包脚本、前端包元数据、部署示例、文档站、发布说明和生产验证口径到 `v0.6.2-alpha` / `0.6.2-alpha`；保留 `v0.6.0-beta` 作为历史生产收口记录 | Agent |
 | 2026-06-23 | **v0.6.0-beta 发布准备**：统一桌面端、Dashboard、CLI、服务端打包脚本、部署示例、文档站和发布说明版本入口到 `v0.6.0-beta` / `0.6.0-beta`；保留 `v0.5.3-beta` 作为历史更新记录 | Agent |
 | 2026-06-23 | **补充真实生产外部验收条件**：在进度文档中新增 Dashboard 公网 HTTPS、Windows 真实 TUN、macOS 真实 TUN、eBPF 性能基准、真实多地域 Edge/Anycast 和发布包实物验收的外部条件、执行入口和通过标准；这些事项在外部资源未满足前不计入代码阻塞 | Agent |

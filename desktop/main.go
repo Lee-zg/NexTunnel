@@ -17,6 +17,9 @@ func main() {
 	if runWintunRepairCommandIfRequested(os.Args[1:]) {
 		return
 	}
+	if runMacOSHelperAdminCommandIfRequested(os.Args[1:]) {
+		return
+	}
 
 	app := NewApp()
 

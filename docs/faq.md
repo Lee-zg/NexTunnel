@@ -101,7 +101,7 @@ Windows 系统路由 TUN 需要官方、匹配架构的 `wintun.dll`。处理方
 
 ## macOS 系统路由 TUN 是生产可用吗？
 
-v0.6.4-alpha 中 macOS P2P/Relay 可用。系统路由 TUN 需要安装 signed/notarized pkg，pkg 会安装 `/Library/PrivilegedHelperTools/nextunnel-helper` 和 `com.nextunnel.helper` LaunchDaemon；DMG 不启用 System TUN。没有 helper 验证报告时，只能标注为外部阻塞或预览限制。
+v0.6.4-alpha 中 macOS P2P/Relay 可用。系统路由 TUN 需要安装官方内置 helper：可在网络页点击“安装 Helper”并输入管理员密码，或执行 `sudo nextunnel helper install`。helper 会安装到 `/Library/PrivilegedHelperTools/nextunnel-helper` 并加载 `com.nextunnel.helper` LaunchDaemon。没有 helper 验证报告时，只能标注为外部阻塞或预览限制。
 
 ## Linux TUN 需要什么权限？
 
@@ -149,7 +149,7 @@ DASHBOARD_RELAY_ADMIN_URL=http://relay-server:7001
 
 - Dashboard HTTPS 域名和有效证书。
 - Windows 管理员权限和 Wintun DLL。
-- macOS signed/notarized pkg、LaunchDaemon helper 或验证环境 `sudo -n`。
+- macOS 用户提权安装的 LaunchDaemon helper，或验证环境 `sudo -n`；signed/notarized PKG 是可选增强。
 - Linux eBPF 节点具备 root、clang、CAP_BPF/CAP_NET_ADMIN。
 - Edge/Anycast 需要真实 Control Plane 或多地域节点。
 

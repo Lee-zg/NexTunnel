@@ -130,7 +130,7 @@ NAT Detector 提供 STUN 探测，桌面端用它判断公网映射和 P2P 可�
 | 平台 | 状态 |
 | --- | --- |
 | Windows | 需要官方 `wintun.dll` 和管理员权限；桌面端提供状态检测和修复入口 |
-| macOS | DMG 只提供 Relay/P2P；signed/notarized pkg 安装 `com.nextunnel.helper` LaunchDaemon 后可启用 System TUN |
+| macOS | Relay/P2P 普通运行；System TUN 由用户在网络页授权安装官方 helper，或执行 `sudo nextunnel helper install` 后启用 |
 | Linux | 需要 `/dev/net/tun` 与 `CAP_NET_ADMIN`，验证脚本会做前置检查 |
 
 ## 数据与安全

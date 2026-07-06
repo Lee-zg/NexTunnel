@@ -16,14 +16,16 @@ import (
 func (c *Client) Status(ctx context.Context) (Status, error) {
 	resp, err := c.roundTrip(ctx, request{Action: actionStatus, ProtocolVersion: ProtocolVersion})
 	if err != nil {
-		return Status{Running: false, SocketPath: c.normalizedSocketPath(), Message: err.Error()}, err
+		return Status{Supported: true, Running: false, SocketPath: c.normalizedSocketPath(), Message: err.Error()}, err
 	}
 	return Status{
+		Supported:       true,
 		Running:         resp.OK,
 		Version:         resp.Version,
 		ProtocolVersion: resp.ProtocolVersion,
 		Signed:          resp.Signed,
 		SocketPath:      c.normalizedSocketPath(),
+		SocketReady:     resp.OK,
 		Message:         resp.Message,
 	}, nil
 }

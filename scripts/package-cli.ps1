@@ -6,6 +6,8 @@ $ErrorActionPreference = "Stop"
 
 $repositoryRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $cliRoot = Join-Path $repositoryRoot "cli"
+$desktopRoot = Join-Path $repositoryRoot "desktop"
+$macosPackagingRoot = Join-Path $repositoryRoot "packaging\macos"
 $distRoot = Join-Path $repositoryRoot "dist"
 $goCacheRoot = Join-Path $repositoryRoot ".gocache-release"
 $releaseVersion = $Version.Trim()
@@ -16,6 +18,8 @@ if ([string]::IsNullOrWhiteSpace($releaseVersion)) {
 
 $normalizedVersion = $releaseVersion.TrimStart("v")
 $targets = @(
+  @{ GOOS = "darwin"; GOARCH = "amd64"; Archive = "tar.gz"; Exe = ""; MacOSHelper = $true },
+  @{ GOOS = "darwin"; GOARCH = "arm64"; Archive = "tar.gz"; Exe = ""; MacOSHelper = $true },
   @{ GOOS = "linux"; GOARCH = "amd64"; Archive = "tar.gz"; Exe = "" },
   @{ GOOS = "linux"; GOARCH = "arm64"; Archive = "tar.gz"; Exe = "" },
   @{ GOOS = "windows"; GOARCH = "amd64"; Archive = "zip"; Exe = ".exe" }
@@ -26,6 +30,16 @@ if (-not (Test-Path $distRoot)) {
 }
 if (-not (Test-Path $goCacheRoot)) {
   New-Item -ItemType Directory -Path $goCacheRoot | Out-Null
+}
+
+function Invoke-GoBuild {
+  param(
+    [string[]]$Arguments
+  )
+  & go @Arguments
+  if ($LASTEXITCODE -ne 0) {
+    throw "go build failed: go $($Arguments -join ' ')"
+  }
 }
 
 $previousGoCache = $env:GOCACHE
@@ -48,16 +62,28 @@ try {
     $binaryName = "nextunnel$($target.Exe)"
     Push-Location $cliRoot
     try {
-      go build -trimpath -ldflags "-s -w -X main.version=$normalizedVersion" -o (Join-Path $packageDir $binaryName) .
+      Invoke-GoBuild -Arguments @("build", "-trimpath", "-ldflags", "-s -w -X main.version=$normalizedVersion", "-o", (Join-Path $packageDir $binaryName), ".")
     } finally {
       Pop-Location
+    }
+    if ($target.MacOSHelper) {
+      $helperResourceDir = Join-Path $packageDir "macos-helper"
+      New-Item -ItemType Directory -Path $helperResourceDir | Out-Null
+      Push-Location $desktopRoot
+      try {
+        Invoke-GoBuild -Arguments @("build", "-trimpath", "-ldflags", "-s -w -X main.version=$normalizedVersion -X main.signed=false", "-o", (Join-Path $helperResourceDir "nextunnel-helper"), "./cmd/nextunnel-helper")
+      } finally {
+        Pop-Location
+      }
+      Copy-Item -LiteralPath (Join-Path $macosPackagingRoot "com.nextunnel.helper.plist") -Destination (Join-Path $helperResourceDir "com.nextunnel.helper.plist") -Force
     }
     @(
       "NexTunnel CLI package",
       "Version: $releaseVersion",
       "ApplicationVersion: $normalizedVersion",
       "Target: $($target.GOOS)/$($target.GOARCH)",
-      "Binary: $binaryName"
+      "Binary: $binaryName",
+      "macOSHelperResource: $(if ($target.MacOSHelper) { 'macos-helper' } else { 'not-applicable' })"
     ) | Set-Content -Path (Join-Path $packageDir "MANIFEST.txt") -Encoding UTF8
 
     if ($target.Archive -eq "tar.gz") {

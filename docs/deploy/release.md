@@ -2,7 +2,7 @@
 
 v0.6.4-alpha 使用统一版本号发布桌面端安装器、CLI、服务端包、一键安装脚本、验证工具和 VitePress 文档站。
 
-本版本发布说明见 [v0.6.4-alpha Release Notes](./release-notes-v0.6.4-alpha.md)。其中 macOS System TUN 只能声明 helper 链路开发完成和本地测试通过；没有 signed/notarized pkg 实机报告前，不能标注生产通过。
+本版本发布说明见 [v0.6.4-alpha Release Notes](./release-notes-v0.6.4-alpha.md)。其中 macOS System TUN 只能声明 helper 链路开发完成和本地测试通过；没有 `-MacUseHelper` 实机 JSON 报告前，不能标注生产通过。
 
 ## 本地打包
 
@@ -27,7 +27,22 @@ macOS DMG 只能在 macOS 本机或 macOS runner 构建：
 bash scripts/package-macos.sh --version v0.6.4-alpha
 ```
 
-Developer ID 签名和公证使用同一脚本入口。执行前需要在本机 Keychain 或 CI 临时 Keychain 中具备 Developer ID Application / Installer 证书，并设置 notarytool 凭据：
+默认产物是 unsigned DMG，manifest 会标记 `Signing: unsigned-alpha`。DMG 内置 `nextunnel-helper`、LaunchDaemon plist 和固定安装脚本，用户可在网络页输入管理员密码安装 helper；也可使用 CLI：
+
+```bash
+sudo nextunnel helper install
+nextunnel helper status
+sudo nextunnel helper restart
+sudo nextunnel helper uninstall
+```
+
+未签名 DMG 可作为开源 alpha 分发或授权技术验证入口，但不能单独作为 macOS System TUN 生产通过依据。若需要本机生成 unsigned PKG 做安装器链路验证，可显式执行：
+
+```bash
+MACOS_BUILD_PKG=true make package-macos VERSION=v0.6.4-alpha
+```
+
+Developer ID 签名和公证是可选增强通道。执行前需要在本机 Keychain 或 CI 临时 Keychain 中具备 Developer ID Application / Installer 证书，并设置 notarytool 凭据：
 
 ```bash
 export MACOS_DEVELOPER_ID_APPLICATION="Developer ID Application: Example Inc (TEAMID)"
@@ -39,7 +54,7 @@ export MACOS_NOTARY_PASSWORD="<app-specific-password-or-keychain-profile-passwor
 MACOS_SIGN=true MACOS_NOTARIZE=true make package-macos VERSION=v0.6.4-alpha
 ```
 
-脚本会对 `.app`、`nextunnel-helper`、`.pkg` 执行签名验证，对 `.dmg` 和 `.pkg` 执行 notarization、staple 和 stapler validate；任一步失败都不会上传可宣称生产通过的 macOS System TUN 产物。
+签名模式下脚本会对 `.app`、内置和外置 `nextunnel-helper`、`.pkg` 执行签名验证，对 `.dmg` 和 `.pkg` 执行 notarization、staple 和 stapler validate；任一步失败都不会上传可宣称生产通过的 macOS System TUN 产物。
 
 ## Windows Wintun 打包
 
@@ -80,7 +95,7 @@ zip 便携包缺少 DLL 时，桌面端网络页会显示 Wintun 状态，并提
 
 推送 `v0.6.4-alpha` 标签会触发 `.github/workflows/release.yml`。
 
-macOS Release job 默认按 signed/notarized 发布处理，必须先配置以下 GitHub Secrets：
+macOS Release job 支持两档输出：缺少签名 secrets 时上传 unsigned DMG；以下 GitHub Secrets 完整时额外生成并上传 signed/notarized PKG：
 
 ```text
 MACOS_CERTIFICATE_P12
@@ -93,7 +108,7 @@ MACOS_NOTARY_TEAM_ID
 MACOS_NOTARY_PASSWORD
 ```
 
-`MACOS_CERTIFICATE_P12` 是同时包含 Developer ID Application 和 Developer ID Installer 私钥证书的 base64 P12。缺少任一 secret 时 macOS job 会失败，避免上传未签名或未公证的 System TUN pkg。
+`MACOS_CERTIFICATE_P12` 是同时包含 Developer ID Application 和 Developer ID Installer 私钥证书的 base64 P12。缺少任一 secret 时 macOS job 不失败，只发布 unsigned DMG 且不上传 PKG。
 
 发布资产：
 
@@ -106,8 +121,10 @@ nextunnel-v0.6.4-alpha-windows-amd64.zip.sha256
 nextunnel-v0.6.4-alpha-darwin-universal.dmg
 nextunnel-v0.6.4-alpha-darwin-universal.dmg.sha256
 nextunnel-v0.6.4-alpha-darwin-universal.MANIFEST.txt
-nextunnel-v0.6.4-alpha-darwin-universal.pkg
-nextunnel-v0.6.4-alpha-darwin-universal.pkg.sha256
+nextunnel-v0.6.4-alpha-darwin-universal.pkg                 # 仅 signed/notarized 通道
+nextunnel-v0.6.4-alpha-darwin-universal.pkg.sha256          # 仅 signed/notarized 通道
+nextunnel-cli-v0.6.4-alpha-darwin-amd64.tar.gz
+nextunnel-cli-v0.6.4-alpha-darwin-arm64.tar.gz
 nextunnel-cli-v0.6.4-alpha-linux-amd64.tar.gz
 nextunnel-cli-v0.6.4-alpha-linux-arm64.tar.gz
 nextunnel-cli-v0.6.4-alpha-windows-amd64.zip
@@ -184,8 +201,9 @@ sudo INTERFACE_NAME=eth0 make verify-ebpf-linux
 - Release 页面存在所有安装器、压缩包、manifest 和 SHA256。
 - Windows 自定义 Wails 安装器可提权启动，显示安装位置、桌面快捷方式、payload/WebView2/Wintun 状态和完成后立即运行选项。
 - Windows zip 包缺少 DLL 时，网络页能显示 Wintun 状态和修复入口。
-- macOS DMG 可挂载，包含 `NexTunnel.app`、Applications 链接、README 和 manifest。
-- macOS PKG 可通过 `pkgutil --check-signature`、`spctl -a -t install` 和 `xcrun stapler validate`，安装后 `launchctl print system/com.nextunnel.helper` 与 `test -S /var/run/nextunnel/helper.sock` 通过。
+- macOS DMG 可挂载，包含 `NexTunnel.app`、Applications 链接、README、manifest 和 App 内置 `macos-helper/` 资源。
+- macOS 网络页“安装 Helper”可触发管理员授权；CLI 包可执行 `sudo nextunnel helper install`，安装后 `launchctl print system/com.nextunnel.helper` 与 `test -S /var/run/nextunnel/helper.sock` 通过。
+- signed/notarized PKG 如已生成，应通过 `pkgutil --check-signature`、`spctl -a -t install` 和 `xcrun stapler validate`。
 - `install.sh` 和 `install.ps1` 可从 Release 下载。
 - Linux 一键安装后 `nextunnel server health` 通过。
 - Dashboard HTTPS 或 SSH 隧道验证通过。
@@ -198,7 +216,7 @@ Release notes 必须明确：
 - 支持自部署 Relay、Control Plane、Dashboard。
 - 支持桌面端 TCP/HTTP 隧道和客户端监控。
 - Windows TUN 需要 Wintun 和管理员权限。
-- macOS DMG 只声明 P2P/Relay；System TUN 只有 signed/notarized pkg 安装 `com.nextunnel.helper` 且有 `tun-macos-latest.json` 报告后，才能标注真实环境功能验收通过。
+- macOS System TUN 默认由用户本地提权安装官方内置 helper；signed/notarized PKG 是可选增强。只有 `-MacUseHelper` 生成并归档 `tun-macos-latest.json` 后，才能标注真实环境功能验收通过。
 - Dashboard 生产 HTTPS 需要可用域名、证书和反向代理。
 - eBPF 压测需要隔离 Linux 节点或维护窗口。
 - Edge/Anycast 多地域生产拓扑需要真实多地域节点和可归档验证报告。

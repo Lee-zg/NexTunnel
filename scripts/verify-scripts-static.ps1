@@ -253,6 +253,8 @@ foreach ($contract in $parameterContracts) {
 }
 
 $bashScripts = @(
+  "scripts/build-desktop.sh",
+  "scripts/install-macos-helper.sh",
   "scripts/package-macos.sh",
   "scripts/verify-ebpf-linux.sh"
 )

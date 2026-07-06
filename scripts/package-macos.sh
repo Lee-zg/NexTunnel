@@ -6,7 +6,7 @@ PLATFORM="darwin/universal"
 SKIP_FRONTEND="false"
 SIGN="false"
 NOTARIZE="false"
-BUILD_PKG="true"
+BUILD_PKG="auto"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -28,6 +28,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     -Notarize|--notarize)
       NOTARIZE="true"
+      shift
+      ;;
+    -Pkg|--pkg)
+      BUILD_PKG="true"
       shift
       ;;
     -SkipPkg|--skip-pkg)
@@ -84,6 +88,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DESKTOP_ROOT="$REPO_ROOT/desktop"
 FRONTEND_ROOT="$DESKTOP_ROOT/frontend"
 DIST_ROOT="$REPO_ROOT/dist"
+GO_BUILD_CACHE_ROOT="$REPO_ROOT/.tmp/go-build-cache"
 MACOS_PACKAGING_ROOT="$REPO_ROOT/packaging/macos"
 NORMALIZED_VERSION="${VERSION#v}"
 TARGET_ARCH="${PLATFORM#darwin/}"
@@ -98,14 +103,32 @@ HELPER_SIGNED_VALUE="false"
 HELPER_BUILD_ROOT="$DIST_ROOT/${TARGET_NAME}-helper-build"
 HELPER_TARGET="$STAGING_ROOT/nextunnel-helper"
 HELPER_PLIST_SOURCE="$MACOS_PACKAGING_ROOT/com.nextunnel.helper.plist"
+HELPER_INSTALL_SCRIPT_SOURCE="$REPO_ROOT/scripts/install-macos-helper.sh"
+MACOS_HELPER_RESOURCE_ROOT="$APP_TARGET/Contents/Resources/macos-helper"
+HELPER_RESOURCE_TARGET="$MACOS_HELPER_RESOURCE_ROOT/nextunnel-helper"
+HELPER_RESOURCE_PLIST_TARGET="$MACOS_HELPER_RESOURCE_ROOT/com.nextunnel.helper.plist"
+HELPER_RESOURCE_INSTALL_SCRIPT_TARGET="$MACOS_HELPER_RESOURCE_ROOT/install-helper.sh"
 PKG_ROOT="$DIST_ROOT/${TARGET_NAME}-pkgroot"
 PKG_SCRIPTS_ROOT="$DIST_ROOT/${TARGET_NAME}-pkg-scripts"
 PKG_PATH="$DIST_ROOT/${TARGET_NAME}.pkg"
+APP_FALLBACK_BUILD_ROOT="$DIST_ROOT/${TARGET_NAME}-app-build"
+APP_BUNDLE_EXECUTABLE="NexTunnel"
+APP_BUNDLE_IDENTIFIER="com.nextunnel.desktop"
+WAILS_BUILD_TAGS="desktop,wv2runtime.download,production"
+MACOS_WAILS_EXTRA_CGO_LDFLAGS="-framework UniformTypeIdentifiers"
 
 if [[ "$NOTARIZE" == "true" ]]; then
   SIGNING_STATE="notarized"
 elif [[ "$SIGN" == "true" ]]; then
   SIGNING_STATE="signed"
+fi
+
+if [[ "$BUILD_PKG" == "auto" ]]; then
+  if [[ "$SIGN" == "true" || "$NOTARIZE" == "true" ]]; then
+    BUILD_PKG="true"
+  else
+    BUILD_PKG="false"
+  fi
 fi
 
 require_tool() {
@@ -222,7 +245,100 @@ build_macos_helper() {
   esac
 }
 
-mkdir -p "$DIST_ROOT"
+install_macos_helper_resources() {
+  if [[ ! -f "$HELPER_PLIST_SOURCE" ]]; then
+    echo "未找到 LaunchDaemon plist：$HELPER_PLIST_SOURCE" >&2
+    exit 1
+  fi
+  if [[ ! -f "$HELPER_INSTALL_SCRIPT_SOURCE" ]]; then
+    echo "未找到 helper 安装脚本：$HELPER_INSTALL_SCRIPT_SOURCE" >&2
+    exit 1
+  fi
+  mkdir -p "$MACOS_HELPER_RESOURCE_ROOT"
+  cp "$HELPER_TARGET" "$HELPER_RESOURCE_TARGET"
+  cp "$HELPER_PLIST_SOURCE" "$HELPER_RESOURCE_PLIST_TARGET"
+  cp "$HELPER_INSTALL_SCRIPT_SOURCE" "$HELPER_RESOURCE_INSTALL_SCRIPT_TARGET"
+  chmod 755 "$HELPER_RESOURCE_TARGET" "$HELPER_RESOURCE_INSTALL_SCRIPT_TARGET"
+  chmod 644 "$HELPER_RESOURCE_PLIST_TARGET"
+}
+
+write_fallback_app_info_plist() {
+  local plist_path="$APP_SOURCE/Contents/Info.plist"
+  cat > "$plist_path" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>zh_CN</string>
+  <key>CFBundleDisplayName</key>
+  <string>NexTunnel</string>
+  <key>CFBundleExecutable</key>
+  <string>$APP_BUNDLE_EXECUTABLE</string>
+  <key>CFBundleIdentifier</key>
+  <string>$APP_BUNDLE_IDENTIFIER</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleName</key>
+  <string>NexTunnel</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>$NORMALIZED_VERSION</string>
+  <key>CFBundleVersion</key>
+  <string>$NORMALIZED_VERSION</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>12.0</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+</dict>
+</plist>
+EOF
+  printf 'APPL????' > "$APP_SOURCE/Contents/PkgInfo"
+}
+
+build_desktop_binary_for_arch() {
+  local arch="$1"
+  local output="$2"
+  (
+    cd "$DESKTOP_ROOT"
+    GOOS=darwin GOARCH="$arch" CGO_ENABLED=1 go build \
+      -buildvcs=false \
+      -trimpath \
+      -tags "$WAILS_BUILD_TAGS" \
+      -ldflags "-s -w -X main.AppVersion=$NORMALIZED_VERSION" \
+      -o "$output"
+  )
+}
+
+build_macos_app_bundle_fallback() {
+  local app_binary="$APP_SOURCE/Contents/MacOS/$APP_BUNDLE_EXECUTABLE"
+  echo "Wails CLI 打包失败，使用 Go 直构 fallback 组装 NexTunnel.app"
+  rm -rf "$APP_SOURCE" "$APP_FALLBACK_BUILD_ROOT"
+  mkdir -p "$APP_SOURCE/Contents/MacOS" "$APP_SOURCE/Contents/Resources" "$APP_FALLBACK_BUILD_ROOT"
+  case "$TARGET_ARCH" in
+    universal)
+      build_desktop_binary_for_arch amd64 "$APP_FALLBACK_BUILD_ROOT/NexTunnel-amd64"
+      build_desktop_binary_for_arch arm64 "$APP_FALLBACK_BUILD_ROOT/NexTunnel-arm64"
+      lipo -create "$APP_FALLBACK_BUILD_ROOT/NexTunnel-amd64" "$APP_FALLBACK_BUILD_ROOT/NexTunnel-arm64" -output "$app_binary"
+      ;;
+    amd64|arm64)
+      build_desktop_binary_for_arch "$TARGET_ARCH" "$app_binary"
+      ;;
+    *)
+      echo "不支持的 macOS app 架构：$TARGET_ARCH" >&2
+      exit 1
+      ;;
+  esac
+  chmod +x "$app_binary"
+  write_fallback_app_info_plist
+  if [[ -f "$DESKTOP_ROOT/build/appicon.png" ]]; then
+    cp "$DESKTOP_ROOT/build/appicon.png" "$APP_SOURCE/Contents/Resources/appicon.png"
+  fi
+}
+
+mkdir -p "$DIST_ROOT" "$GO_BUILD_CACHE_ROOT"
+export GOCACHE="${GOCACHE:-$GO_BUILD_CACHE_ROOT}"
 
 if [[ "$SKIP_FRONTEND" != "true" ]]; then
   echo "构建桌面端前端"
@@ -232,13 +348,18 @@ fi
 echo "打包 macOS 桌面端 $VERSION ($PLATFORM)"
 (
   cd "$DESKTOP_ROOT"
-  wails build \
+  # macOS 15+ SDK 下 Wails 依赖 UTType，显式补充链接框架避免 arm64/universal 链接失败。
+  export CGO_LDFLAGS="${CGO_LDFLAGS:+$CGO_LDFLAGS }$MACOS_WAILS_EXTRA_CGO_LDFLAGS"
+  if ! wails build \
     -m \
     -s \
     -trimpath \
     -platform "$PLATFORM" \
+    -tags "$WAILS_BUILD_TAGS" \
     -o "NexTunnel" \
-    -ldflags "-s -w -X main.AppVersion=$NORMALIZED_VERSION"
+    -ldflags "-s -w -X main.AppVersion=$NORMALIZED_VERSION"; then
+    build_macos_app_bundle_fallback
+  fi
 )
 
 if [[ ! -d "$APP_SOURCE" ]]; then
@@ -246,7 +367,7 @@ if [[ ! -d "$APP_SOURCE" ]]; then
   exit 1
 fi
 
-rm -rf "$STAGING_ROOT" "$DMG_STAGING" "$DMG_PATH" "$PKG_ROOT" "$PKG_SCRIPTS_ROOT" "$PKG_PATH"
+rm -rf "$STAGING_ROOT" "$DMG_STAGING" "$DMG_PATH" "$PKG_ROOT" "$PKG_SCRIPTS_ROOT" "$PKG_PATH" "$PKG_PATH.sha256"
 mkdir -p "$STAGING_ROOT" "$DMG_STAGING"
 cp -R "$APP_SOURCE" "$APP_TARGET"
 if [[ "$SIGN" == "true" ]]; then
@@ -257,8 +378,15 @@ build_macos_helper
 if [[ "$SIGN" == "true" ]]; then
   # 使用 hardened runtime，为后续 notarization 做准备。
   codesign --force --options runtime --timestamp --sign "$MACOS_DEVELOPER_ID_APPLICATION" "$HELPER_TARGET"
+fi
+
+install_macos_helper_resources
+
+if [[ "$SIGN" == "true" ]]; then
+  codesign --force --options runtime --timestamp --sign "$MACOS_DEVELOPER_ID_APPLICATION" "$HELPER_RESOURCE_TARGET"
   codesign --force --deep --options runtime --timestamp --sign "$MACOS_DEVELOPER_ID_APPLICATION" "$APP_TARGET"
   verify_code_signature "$HELPER_TARGET" "nextunnel-helper"
+  verify_code_signature "$HELPER_RESOURCE_TARGET" "NexTunnel.app 内置 nextunnel-helper"
   verify_code_signature "$APP_TARGET" "NexTunnel.app"
 fi
 
@@ -283,7 +411,9 @@ Installer: dmg
 Binary: NexTunnel.app
 Wintun: skipped; macOS uses utun
 macOSHelper: $HELPER_TARGET
+macOSHelperResource: NexTunnel.app/Contents/Resources/macos-helper
 macOSHelperLaunchDaemon: /Library/LaunchDaemons/com.nextunnel.helper.plist
+macOSHelperInstall: user-admin-authorized
 Signing: $SIGNING_STATE
 PrunedResources: true
 EOF
@@ -301,7 +431,7 @@ if [[ "$NOTARIZE" == "true" ]]; then
   notarize_and_staple "$DMG_PATH" "DMG"
 fi
 
-shasum -a 256 "$DMG_PATH" | awk '{print tolower($1) "  " $2}' > "$DMG_PATH.sha256"
+(cd "$DIST_ROOT" && shasum -a 256 "$(basename "$DMG_PATH")" | awk '{print tolower($1) "  " $2}' > "$(basename "$DMG_PATH").sha256")
 
 if [[ "$BUILD_PKG" == "true" ]]; then
   if [[ ! -f "$HELPER_PLIST_SOURCE" ]]; then
@@ -353,7 +483,7 @@ EOF
   if [[ "$SIGN" == "true" ]]; then
     assess_pkg_install "$PKG_PATH"
   fi
-  shasum -a 256 "$PKG_PATH" | awk '{print tolower($1) "  " $2}' > "$PKG_PATH.sha256"
+  (cd "$DIST_ROOT" && shasum -a 256 "$(basename "$PKG_PATH")" | awk '{print tolower($1) "  " $2}' > "$(basename "$PKG_PATH").sha256")
   echo "macOS System TUN PKG 已生成：$PKG_PATH"
   echo "SHA256：$PKG_PATH.sha256"
 fi

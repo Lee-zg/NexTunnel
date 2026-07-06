@@ -5,10 +5,11 @@
 - 版本入口统一升级到 `v0.6.4-alpha` / `0.6.4-alpha`，同步桌面端、Dashboard、CLI、服务端打包脚本、前端包元数据、部署示例、发布流程和文档站口径。
 - macOS System TUN 完成 LaunchDaemon helper 开发接入：`nextunnel-helper` 以 root 运行，监听 `/var/run/nextunnel/helper.sock`，通过受控协议创建 utun、fd passing 交给桌面端，并应用/清理路由。
 - macOS helper 限制 socket 权限为 `root:admin 0660`，校验 peer credential，拒绝任意 shell 执行和 `0.0.0.0/0`、`::/0` 默认路由。
-- 桌面端、P2P/TUN 预检、网络页和验证器接入 macOS helper 状态；helper 可用时不再把 macOS System TUN 标为 `privilege_required`。
-- `scripts/package-macos.sh` 新增 helper 构建、LaunchDaemon plist、System TUN `.pkg`、签名/公证参数和 SHA256 产物；DMG 继续作为 P2P/Relay-only 安装形态。
-- `scripts/verify-p2p-tun.ps1` 新增 `-MacUseHelper`，生产验证口径改为 signed/notarized pkg 安装并归档 `tun-macos-latest.json` 后，才能声明 macOS System TUN 真实环境功能验收通过。
-- 发布边界：本版本可声明 macOS System TUN helper 链路开发完成、本地测试通过；缺少 Developer ID 签名/公证、pkg 实机安装和 JSON 报告前，不声明生产通过。
+- 桌面端、P2P/TUN 预检、网络页、CLI 和验证器接入 macOS helper 状态；网络页可由用户管理员授权安装、检查、重启和卸载 helper。
+- `scripts/package-macos.sh` 新增 helper 构建、LaunchDaemon plist、App 内置 helper 资源、签名/公证参数和 SHA256 产物；默认发布 unsigned DMG，signed/notarized PKG 作为可选增强。
+- `nextunnel helper install/status/restart/uninstall` 提供开源透明安装路径；`scripts/verify-p2p-tun.ps1 -MacUseHelper` 归档 `tun-macos-latest.json` 后，才能声明 macOS System TUN 真实环境功能验收通过。
+- 修复桌面端网络页进入后黑屏的问题：根组件补齐 Naive UI `n-dialog-provider`，确保 macOS Helper 安装/卸载确认框不会在网络页 `setup` 阶段触发未捕获异常。
+- 发布边界：本版本可声明 macOS System TUN helper 链路开发完成、本地测试通过；缺少授权实机 helper 验收 JSON 报告前，不声明生产通过。
 
 ## v0.6.3-alpha
 

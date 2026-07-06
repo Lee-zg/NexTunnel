@@ -144,11 +144,16 @@ export interface WintunStatus {
 }
 
 export interface MacOSHelperStatus {
+  supported: boolean
+  installed: boolean
   running: boolean
   version: string
   protocol_version: string
   signed: boolean
   socket_path: string
+  socket_ready: boolean
+  helper_path: string
+  launch_daemon_path: string
   message: string
 }
 
@@ -330,11 +335,16 @@ const PREVIEW_TUN: PlatformCapabilities = {
   ],
 }
 const PREVIEW_MACOS_HELPER: MacOSHelperStatus = {
+  supported: false,
+  installed: false,
   running: false,
   version: '',
   protocol_version: '',
   signed: false,
   socket_path: '',
+  socket_ready: false,
+  helper_path: '',
+  launch_daemon_path: '',
   message: 'Preview mode does not run the macOS helper.',
 }
 const PREVIEW_FAVORITE_PORTS: FavoritePortInfo[] = [
@@ -530,6 +540,9 @@ const createPreviewBinding = (): Record<string, WailsMethod> => ({
     action: 'Run the desktop app on Windows.',
   }),
   RelaunchAsAdminForWintunRepair: () => undefined,
+  InstallMacOSHelper: () => PREVIEW_MACOS_HELPER,
+  RestartMacOSHelper: () => PREVIEW_MACOS_HELPER,
+  UninstallMacOSHelper: () => PREVIEW_MACOS_HELPER,
   ApplyVirtualNetwork: () => PREVIEW_VIRTUAL_NETWORK,
   ResetVirtualNetwork: () => PREVIEW_VIRTUAL_NETWORK,
   DetectNAT: () => ({
@@ -711,6 +724,18 @@ export const RepairWintun = (input: RepairWintunInput): Promise<WintunStatus> =>
 
 export const RelaunchAsAdminForWintunRepair = (): Promise<void> => {
   return call<void>('RelaunchAsAdminForWintunRepair')
+}
+
+export const InstallMacOSHelper = (): Promise<MacOSHelperStatus> => {
+  return call<MacOSHelperStatus>('InstallMacOSHelper')
+}
+
+export const RestartMacOSHelper = (): Promise<MacOSHelperStatus> => {
+  return call<MacOSHelperStatus>('RestartMacOSHelper')
+}
+
+export const UninstallMacOSHelper = (): Promise<MacOSHelperStatus> => {
+  return call<MacOSHelperStatus>('UninstallMacOSHelper')
 }
 
 export const ApplyVirtualNetwork = (): Promise<VirtualNetworkState> => {

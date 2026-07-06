@@ -8,6 +8,7 @@ import {
   CollectDiagnostics,
   ExportConfig,
   InstallUpdate,
+  InstallMacOSHelper,
   GetTunnels,
   CreateTunnel,
   UpdateTunnel,
@@ -39,7 +40,9 @@ import {
   ImportConfig,
   RepairWintun,
   RelaunchAsAdminForWintunRepair,
+  RestartMacOSHelper,
   ScanLocalPorts,
+  UninstallMacOSHelper,
   type FavoritePortInfo,
   type FavoritePortInput,
   type ActivityLogFilter,
@@ -60,6 +63,7 @@ import {
   type ExportConfigOptions,
   type VirtualNetworkState,
   type WintunStatus,
+  type MacOSHelperStatus,
   type RepairWintunInput,
 } from '../api/app'
 
@@ -173,6 +177,7 @@ export const useTunnelStore = defineStore('tunnels', () => {
   const virtualNetwork = ref<VirtualNetworkState | null>(null)
   const wintunStatus = ref<WintunStatus | null>(null)
   const isRepairingWintun = ref<boolean>(false)
+  const isManagingMacOSHelper = ref<boolean>(false)
   const lastNATDetection = ref<NATDetectionInfo | null>(null)
   const serverNodeCheckResults = ref<Record<string, ServerNodeCheckResult>>({})
   const checkingServerNodeIDs = ref<Set<string>>(new Set())
@@ -605,6 +610,38 @@ export const useTunnelStore = defineStore('tunnels', () => {
     }
   }
 
+  const installMacOSHelper = async (): Promise<MacOSHelperStatus> => {
+    return manageMacOSHelper(() => InstallMacOSHelper())
+  }
+
+  const restartMacOSHelper = async (): Promise<MacOSHelperStatus> => {
+    return manageMacOSHelper(() => RestartMacOSHelper())
+  }
+
+  const uninstallMacOSHelper = async (): Promise<MacOSHelperStatus> => {
+    return manageMacOSHelper(() => UninstallMacOSHelper())
+  }
+
+  const manageMacOSHelper = async (operation: () => Promise<MacOSHelperStatus>): Promise<MacOSHelperStatus> => {
+    isManagingMacOSHelper.value = true
+    lastError.value = ''
+    try {
+      const status = await operation()
+      if (runtimeStatus.value) {
+        runtimeStatus.value = { ...runtimeStatus.value, macos_helper: status }
+      }
+      await refreshRuntimeStatus()
+      await loadActivityLogs({ limit: DEFAULT_ACTIVITY_LOG_LIMIT })
+      return status
+    } catch (e) {
+      lastError.value = extractErrorMessage(e)
+      await refreshRuntimeStatus().catch(() => undefined)
+      throw e
+    } finally {
+      isManagingMacOSHelper.value = false
+    }
+  }
+
   const loadFavoritePorts = async (): Promise<void> => {
     lastError.value = ''
     try {
@@ -776,6 +813,7 @@ export const useTunnelStore = defineStore('tunnels', () => {
     virtualNetwork,
     wintunStatus,
     isRepairingWintun,
+    isManagingMacOSHelper,
     lastNATDetection,
     serverNodeCheckResults,
     checkingServerNodeIDs,
@@ -810,6 +848,9 @@ export const useTunnelStore = defineStore('tunnels', () => {
     refreshWintunStatus,
     repairWintun,
     relaunchAsAdminForWintunRepair,
+    installMacOSHelper,
+    restartMacOSHelper,
+    uninstallMacOSHelper,
     applyVirtualNetwork,
     resetVirtualNetwork,
     detectNAT,

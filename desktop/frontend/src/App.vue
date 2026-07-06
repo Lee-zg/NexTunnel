@@ -6,159 +6,161 @@
     :date-locale="naiveDateLocale"
   >
     <n-message-provider>
-      <div
-        class="app-shell"
-        :class="appThemeClass"
-        :style="appThemeStyle"
-      >
+      <n-dialog-provider>
         <div
-          class="network-background"
-          aria-hidden="true"
-        />
+          class="app-shell"
+          :class="appThemeClass"
+          :style="appThemeStyle"
+        >
+          <div
+            class="network-background"
+            aria-hidden="true"
+          />
 
-        <header class="titlebar">
-          <div class="titlebar-drag-region">
-            <div class="brand-lockup">
-              <div class="brand-copy">
-                <strong class="brand-title"><span>Nex</span>Tunnel</strong>
-                <span>{{ t('app.subtitle') }}</span>
+          <header class="titlebar">
+            <div class="titlebar-drag-region">
+              <div class="brand-lockup">
+                <div class="brand-copy">
+                  <strong class="brand-title"><span>Nex</span>Tunnel</strong>
+                  <span>{{ t('app.subtitle') }}</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div class="titlebar-actions">
-            <n-button
-              quaternary
-              circle
-              size="small"
-              :title="t('window.minimise')"
-              @click="minimiseWindow"
-            >
-              <span class="window-icon minimise-icon" />
-            </n-button>
-            <n-button
-              quaternary
-              circle
-              size="small"
-              :title="t('window.maximise')"
-              @click="toggleMaximiseWindow"
-            >
-              <span class="window-icon maximise-icon" />
-            </n-button>
-            <n-button
-              quaternary
-              circle
-              size="small"
-              class="close-button"
-              :title="t('window.close')"
-              @click="closeWindow"
-            >
-              <span class="window-icon close-icon" />
-            </n-button>
-          </div>
-        </header>
-
-        <div class="workspace">
-          <aside class="sidebar">
-            <div class="sidebar-logo">
-              <img
-                :src="sidebarLogoImage"
-                alt="NexTunnel"
+            <div class="titlebar-actions">
+              <n-button
+                quaternary
+                circle
+                size="small"
+                :title="t('window.minimise')"
+                @click="minimiseWindow"
               >
+                <span class="window-icon minimise-icon" />
+              </n-button>
+              <n-button
+                quaternary
+                circle
+                size="small"
+                :title="t('window.maximise')"
+                @click="toggleMaximiseWindow"
+              >
+                <span class="window-icon maximise-icon" />
+              </n-button>
+              <n-button
+                quaternary
+                circle
+                size="small"
+                class="close-button"
+                :title="t('window.close')"
+                @click="closeWindow"
+              >
+                <span class="window-icon close-icon" />
+              </n-button>
             </div>
+          </header>
 
-            <nav
-              class="sidebar-nav"
-              aria-label="NexTunnel client navigation"
-            >
-              <span
-                class="nav-active-indicator"
-                :style="{ transform: `translateY(${activeNavIndex * NAV_ITEM_STEP}px)` }"
-                aria-hidden="true"
-              />
-              <button
-                v-for="item in navItems"
-                :key="item.key"
-                class="nav-button"
-                :class="{ active: item.active, disabled: item.disabled }"
-                type="button"
-                :disabled="item.disabled"
-                @click="activeView = item.key"
+          <div class="workspace">
+            <aside class="sidebar">
+              <div class="sidebar-logo">
+                <img
+                  :src="sidebarLogoImage"
+                  alt="NexTunnel"
+                >
+              </div>
+
+              <nav
+                class="sidebar-nav"
+                aria-label="NexTunnel client navigation"
               >
-                <n-icon
-                  class="nav-icon"
-                  :component="item.icon"
-                  :size="22"
+                <span
+                  class="nav-active-indicator"
+                  :style="{ transform: `translateY(${activeNavIndex * NAV_ITEM_STEP}px)` }"
+                  aria-hidden="true"
                 />
-                <span>{{ item.label }}</span>
+                <button
+                  v-for="item in navItems"
+                  :key="item.key"
+                  class="nav-button"
+                  :class="{ active: item.active, disabled: item.disabled }"
+                  type="button"
+                  :disabled="item.disabled"
+                  @click="activeView = item.key"
+                >
+                  <n-icon
+                    class="nav-icon"
+                    :component="item.icon"
+                    :size="22"
+                  />
+                  <span>{{ item.label }}</span>
+                  <n-tag
+                    v-if="item.disabled"
+                    size="small"
+                    round
+                    type="info"
+                    :bordered="false"
+                  >
+                    {{ t('nav.planned') }}
+                  </n-tag>
+                </button>
+              </nav>
+
+              <div class="sidebar-footer">
                 <n-tag
-                  v-if="item.disabled"
-                  size="small"
                   round
-                  type="info"
+                  type="success"
                   :bordered="false"
                 >
-                  {{ t('nav.planned') }}
+                  {{ t('app.localAgent') }}
                 </n-tag>
-              </button>
-            </nav>
-
-            <div class="sidebar-footer">
-              <n-tag
-                round
-                type="success"
-                :bordered="false"
-              >
-                {{ t('app.localAgent') }}
-              </n-tag>
-              <span>{{ t('app.version', { version }) }}</span>
-            </div>
-          </aside>
-
-          <main class="content-shell">
-            <section class="content-header">
-              <div>
-                <span class="section-kicker">{{ t('app.productName') }}</span>
-                <h1>{{ activeTitle }}</h1>
+                <span>{{ t('app.version', { version }) }}</span>
               </div>
-              <n-space align="center">
-                <n-tag
-                  round
-                  :type="connectionTagType"
-                  :bordered="false"
-                >
-                  {{ connectionLabel }}
-                </n-tag>
-              </n-space>
-            </section>
+            </aside>
 
-            <Transition
-              name="view-switch"
-              mode="out-in"
-            >
-              <StatusView
-                v-if="activeView === 'overview' || activeView === 'tunnels'"
-                :key="activeView"
-                :view-mode="activeView === 'tunnels' ? 'tunnels' : 'overview'"
-              />
-              <NetworkView
-                v-else-if="activeView === 'network'"
-                key="network"
-              />
-              <LogsView
-                v-else-if="activeView === 'logs'"
-                key="logs"
-              />
-              <SettingsView
-                v-else
-                key="settings"
-                :theme-mode="resolvedThemeMode"
-              />
-            </Transition>
-          </main>
+            <main class="content-shell">
+              <section class="content-header">
+                <div>
+                  <span class="section-kicker">{{ t('app.productName') }}</span>
+                  <h1>{{ activeTitle }}</h1>
+                </div>
+                <n-space align="center">
+                  <n-tag
+                    round
+                    :type="connectionTagType"
+                    :bordered="false"
+                  >
+                    {{ connectionLabel }}
+                  </n-tag>
+                </n-space>
+              </section>
+
+              <Transition
+                name="view-switch"
+                mode="out-in"
+              >
+                <StatusView
+                  v-if="activeView === 'overview' || activeView === 'tunnels'"
+                  :key="activeView"
+                  :view-mode="activeView === 'tunnels' ? 'tunnels' : 'overview'"
+                />
+                <NetworkView
+                  v-else-if="activeView === 'network'"
+                  key="network"
+                />
+                <LogsView
+                  v-else-if="activeView === 'logs'"
+                  key="logs"
+                />
+                <SettingsView
+                  v-else
+                  key="settings"
+                  :theme-mode="resolvedThemeMode"
+                />
+              </Transition>
+            </main>
+          </div>
+          <UpdatePrompt />
         </div>
-        <UpdatePrompt />
-      </div>
+      </n-dialog-provider>
     </n-message-provider>
   </n-config-provider>
 </template>
@@ -172,6 +174,7 @@ import {
   enUS,
   NButton,
   NConfigProvider,
+  NDialogProvider,
   NIcon,
   NMessageProvider,
   NSpace,

@@ -1,6 +1,6 @@
 # CLI 命令手册
 
-`nextunnel` 是 NexTunnel 的统一命令行入口，覆盖服务端安装管理、远端 Control Plane/Dashboard 操作、本机桌面端控制和环境诊断。
+`nextunnel` 是 NexTunnel 的统一命令行入口，覆盖服务端安装管理、远端 Control Plane/Dashboard 操作、本机桌面端控制、macOS helper 管理和环境诊断。
 
 ## 获取 CLI
 
@@ -55,7 +55,7 @@ nextunnel
 │   ├── node list|inspect
 │   ├── acl list
 │   └── alert list|ack
-└── desktop
+├── desktop
     ├── open
     ├── status
     ├── connect
@@ -63,6 +63,11 @@ nextunnel
     ├── settings get|set
     ├── nat detect
     └── network apply|reset
+└── helper
+    ├── status
+    ├── install
+    ├── restart
+    └── uninstall
 ```
 
 ## server：服务端管理
@@ -132,6 +137,25 @@ sudo nextunnel server install \
 ```
 
 不要把 systemd 模式安装目录放在 `/tmp`、`/var/tmp` 或 `/dev/shm`。服务启用隔离后，临时目录可能在服务命名空间内不可见。
+
+## helper：macOS System TUN Helper
+
+`nextunnel helper` 只管理 NexTunnel 官方内置 macOS LaunchDaemon helper，不支持第三方动态 root 插件。安装、重启和卸载需要管理员权限：
+
+```bash
+nextunnel helper status
+sudo nextunnel helper install
+sudo nextunnel helper restart
+sudo nextunnel helper uninstall
+```
+
+开发或打包验证时可显式指定资源来源；正式用户通常不需要这些参数：
+
+```bash
+sudo nextunnel helper install \
+  --helper-binary ./nextunnel-helper \
+  --plist ./com.nextunnel.helper.plist
+```
 
 ## config：上下文配置
 

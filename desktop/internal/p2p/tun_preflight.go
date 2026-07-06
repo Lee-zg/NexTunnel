@@ -169,7 +169,7 @@ func platformEnvironmentHints(goos string) []string {
 		}
 	case "darwin":
 		return []string{
-			"生产环境安装 signed/notarized pkg，由 LaunchDaemon helper 创建 utun 并注入路由；验证环境可配置 sudo -n 免密执行。",
+			"生产环境安装内置 macOS System TUN Helper，由 LaunchDaemon helper 创建 utun 并注入路由；验证环境可配置 sudo -n 免密执行。",
 			"没有授权 helper 时只启用 P2P/Relay 转发，不声明系统路由 TUN 可用。",
 		}
 	case "linux":
@@ -202,7 +202,7 @@ func addDarwinHelperIssues(caps *PlatformCapabilities, helper macOSHelperPreflig
 			Code:     "macos_helper_missing",
 			Severity: IssueSeverityBlocker,
 			Message:  "未找到 macOS LaunchDaemon helper socket。",
-			Action:   "安装 signed/notarized pkg，确保 /Library/PrivilegedHelperTools/nextunnel-helper 和 com.nextunnel.helper LaunchDaemon 已加载。",
+			Action:   "在网络页安装 Helper，或执行 sudo nextunnel helper install，确保 /Library/PrivilegedHelperTools/nextunnel-helper 和 com.nextunnel.helper LaunchDaemon 已加载。",
 		})
 		return
 	}
@@ -219,7 +219,7 @@ func addDarwinHelperIssues(caps *PlatformCapabilities, helper macOSHelperPreflig
 		Code:     "macos_helper_protocol_mismatch",
 		Severity: IssueSeverityBlocker,
 		Message:  "macOS LaunchDaemon helper 协议或版本不匹配。",
-		Action:   "升级 NexTunnel pkg 后重新加载 com.nextunnel.helper。",
+		Action:   "升级 NexTunnel 后重新安装或重启 com.nextunnel.helper。",
 	})
 }
 

@@ -171,12 +171,53 @@
             <strong>{{ macOSHelper?.socket_path || '--' }}</strong>
           </div>
           <div class="wintun-meta">
+            <span>{{ t('network.macosHelper.installed') }}</span>
+            <strong>{{ macOSHelper?.installed ? t('network.ready') : t('network.notReady') }}</strong>
+          </div>
+          <div class="wintun-meta">
             <span>{{ t('network.macosHelper.version') }}</span>
             <strong>{{ macOSHelper?.version || '--' }}</strong>
           </div>
           <div class="wintun-meta">
             <span>{{ t('network.macosHelper.signed') }}</span>
             <strong>{{ macOSHelper?.signed ? t('network.ready') : t('network.notReady') }}</strong>
+          </div>
+          <div class="wintun-actions">
+            <n-button
+              size="small"
+              type="primary"
+              :loading="store.isManagingMacOSHelper"
+              @click="handleInstallMacOSHelper"
+            >
+              {{ t('network.macosHelper.install') }}
+            </n-button>
+            <n-button
+              size="small"
+              secondary
+              :disabled="store.isManagingMacOSHelper"
+              @click="handleRefreshMacOSHelper"
+            >
+              {{ t('network.macosHelper.refresh') }}
+            </n-button>
+            <n-button
+              size="small"
+              secondary
+              :loading="store.isManagingMacOSHelper"
+              :disabled="!macOSHelper?.installed"
+              @click="handleRestartMacOSHelper"
+            >
+              {{ t('network.macosHelper.restart') }}
+            </n-button>
+            <n-button
+              size="small"
+              tertiary
+              type="warning"
+              :loading="store.isManagingMacOSHelper"
+              :disabled="!macOSHelper?.installed"
+              @click="handleUninstallMacOSHelper"
+            >
+              {{ t('network.macosHelper.uninstall') }}
+            </n-button>
           </div>
         </div>
 
@@ -271,11 +312,12 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NButton, NCard, NEmpty, NSpace, NTag, useMessage } from 'naive-ui'
+import { NButton, NCard, NEmpty, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 import { useTunnelStore } from '../stores/tunnel'
 
 const store = useTunnelStore()
 const message = useMessage()
+const dialog = useDialog()
 const { t } = useI18n()
 
 const runtime = computed(() => store.runtimeStatus)
@@ -322,7 +364,7 @@ const wintunReady = computed(() => {
 })
 const wintunNeedsRepair = computed(() => shouldShowWintunPanel.value && !wintunReady.value)
 const shouldShowMacOSHelperPanel = computed(() => runtime.value?.tun?.PlatformName === 'darwin')
-const macOSHelperReady = computed(() => Boolean(macOSHelper.value?.running && macOSHelper.value.protocol_version === '1'))
+const macOSHelperReady = computed(() => Boolean(macOSHelper.value?.running && macOSHelper.value.socket_ready && macOSHelper.value.protocol_version === '1'))
 
 const translateProductionMode = (mode?: string): string => {
   if (!mode) return '--'
@@ -374,6 +416,58 @@ const handleRelaunchWintunRepair = async (): Promise<void> => {
   } catch {
     message.error(store.lastError || t('network.wintun.relaunchFailed'))
   }
+}
+
+const handleInstallMacOSHelper = (): void => {
+  dialog.warning({
+    title: t('network.macosHelper.installTitle'),
+    content: t('network.macosHelper.installPrompt'),
+    positiveText: t('network.macosHelper.continue'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      try {
+        await store.installMacOSHelper()
+        message.success(t('network.macosHelper.installSuccess'))
+      } catch {
+        message.error(store.lastError || t('network.macosHelper.installFailed'))
+      }
+    },
+  })
+}
+
+const handleRefreshMacOSHelper = async (): Promise<void> => {
+  try {
+    await store.refreshRuntimeStatus()
+    message.success(t('network.macosHelper.refreshSuccess'))
+  } catch {
+    message.error(store.lastError || t('network.macosHelper.refreshFailed'))
+  }
+}
+
+const handleRestartMacOSHelper = async (): Promise<void> => {
+  try {
+    await store.restartMacOSHelper()
+    message.success(t('network.macosHelper.restartSuccess'))
+  } catch {
+    message.error(store.lastError || t('network.macosHelper.restartFailed'))
+  }
+}
+
+const handleUninstallMacOSHelper = (): void => {
+  dialog.warning({
+    title: t('network.macosHelper.uninstallTitle'),
+    content: t('network.macosHelper.uninstallPrompt'),
+    positiveText: t('network.macosHelper.uninstall'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      try {
+        await store.uninstallMacOSHelper()
+        message.success(t('network.macosHelper.uninstallSuccess'))
+      } catch {
+        message.error(store.lastError || t('network.macosHelper.uninstallFailed'))
+      }
+    },
+  })
 }
 
 onMounted(async () => {

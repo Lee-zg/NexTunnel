@@ -74,6 +74,7 @@ const (
 	activityActionSaveFavoritePort   = "save_favorite_port"
 	activityActionDeleteFavoritePort = "delete_favorite_port"
 	activityActionRepairWintun       = "repair_wintun"
+	activityActionManageMacOSHelper  = "manage_macos_helper"
 	activityActionRuntimeError       = "runtime_error"
 	activityActionClearActivityLogs  = "clear_activity_logs"
 	activityTargetServer             = "server"
@@ -86,6 +87,7 @@ const (
 	activityTargetRuntime            = "runtime"
 	activityTargetLog                = "activity_log"
 	activityTargetWintun             = "wintun"
+	activityTargetMacOSHelper        = "macos_helper"
 	maxActivityLogMessageLength      = 1200
 )
 

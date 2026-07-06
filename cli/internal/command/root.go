@@ -23,6 +23,7 @@ func NewRootCommand(version string) *cobra.Command {
 		newServerCommand(&outputFormat),
 		newRemoteCommand(&outputFormat),
 		newDesktopCommand(&outputFormat),
+		newHelperCommand(&outputFormat),
 		newDoctorCommand(&outputFormat),
 	)
 	return root

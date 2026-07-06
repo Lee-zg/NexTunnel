@@ -1,9 +1,12 @@
 .PHONY: all dev dev-server-web build package-cli package-server package-desktop package-macos lint test verify-scripts-static verify-edge verify-ebpf-linux verify-tun verify-p2p-tun verify-dashboard verify-dashboard-ssh clean help
 
 VERSION ?= v0.6.4-alpha
+WAILS_BUILD_TAGS ?= desktop,wv2runtime.download,production
+APP_BUNDLE_EXECUTABLE ?= NexTunnel
 WINTUN_SHA256 ?= 07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51
 MACOS_SIGN ?= false
 MACOS_NOTARIZE ?= false
+MACOS_BUILD_PKG ?= false
 MAC_HOST ?= 10.160.166.44
 MAC_USER ?= lizhigang
 MAC_PORT ?= 22
@@ -32,17 +35,18 @@ dev-server-web:
 
 ## build: Build the Wails desktop application
 build:
-	cd desktop && wails build
+	APP_BUNDLE_EXECUTABLE="$(APP_BUNDLE_EXECUTABLE)" WAILS_BUILD_TAGS="$(WAILS_BUILD_TAGS)" bash scripts/build-desktop.sh --version $(VERSION)
 
 ## package-desktop: Build Windows desktop release package
 package-desktop:
 	pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/package-desktop.ps1 -Version $(VERSION) -WintunMode bundled -WintunDllPath "$(WINTUN_DLL)" -WintunSha256 "$(WINTUN_SHA256)"
 
-## package-macos: Build macOS desktop DMG and System TUN PKG packages on macOS
+## package-macos: Build macOS desktop DMG on macOS; signed/notarized or MACOS_BUILD_PKG=true also builds PKG
 package-macos:
 	args="--version $(VERSION)"; \
 	if [ "$(MACOS_SIGN)" = "true" ]; then args="$$args --sign"; fi; \
 	if [ "$(MACOS_NOTARIZE)" = "true" ]; then args="$$args --notarize"; fi; \
+	if [ "$(MACOS_BUILD_PKG)" = "true" ]; then args="$$args --pkg"; fi; \
 	bash scripts/package-macos.sh $$args
 
 ## package-cli: Build CLI release packages

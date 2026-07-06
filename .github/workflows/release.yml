@@ -121,7 +121,8 @@ jobs:
         working-directory: desktop/frontend
         run: npm ci
 
-      - name: Validate macOS signing secrets
+      - name: Detect macOS signing mode
+        id: macos-signing
         shell: bash
         env:
           MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
@@ -134,7 +135,7 @@ jobs:
           MACOS_NOTARY_PASSWORD: ${{ secrets.MACOS_NOTARY_PASSWORD }}
         run: |
           set -euo pipefail
-          # macOS 发布资产必须签名和公证，缺少任一 secret 时直接失败。
+          # Apple Developer Program 资源是可选增强；缺少时只发布 unsigned DMG。
           required_vars=(
             MACOS_CERTIFICATE_P12
             MACOS_CERTIFICATE_PASSWORD
@@ -148,15 +149,18 @@ jobs:
           missing="false"
           for var_name in "${required_vars[@]}"; do
             if [[ -z "${!var_name:-}" ]]; then
-              echo "::error::Missing required secret ${var_name}"
               missing="true"
             fi
           done
           if [[ "$missing" == "true" ]]; then
-            exit 1
+            echo "signing_enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::macOS signing secrets are incomplete; publishing unsigned DMG without PKG."
+          else
+            echo "signing_enabled=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Import Developer ID certificates
+        if: steps.macos-signing.outputs.signing_enabled == 'true'
         shell: bash
         env:
           MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
@@ -186,14 +190,20 @@ jobs:
           MACOS_NOTARY_APPLE_ID: ${{ secrets.MACOS_NOTARY_APPLE_ID }}
           MACOS_NOTARY_TEAM_ID: ${{ secrets.MACOS_NOTARY_TEAM_ID }}
           MACOS_NOTARY_PASSWORD: ${{ secrets.MACOS_NOTARY_PASSWORD }}
-        run: bash scripts/package-macos.sh --version "$RELEASE_VERSION" --sign --notarize
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.macos-signing.outputs.signing_enabled }}" == "true" ]]; then
+            bash scripts/package-macos.sh --version "$RELEASE_VERSION" --sign --notarize
+          else
+            bash scripts/package-macos.sh --version "$RELEASE_VERSION" --skip-pkg
+          fi
 
       - name: Delete signing keychain
-        if: always()
+        if: always() && steps.macos-signing.outputs.signing_enabled == 'true'
         shell: bash
         run: security delete-keychain "$RUNNER_TEMP/nextunnel-signing.keychain-db" >/dev/null 2>&1 || true
 
-      - name: Upload release assets
+      - name: Upload macOS DMG assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_VERSION }}
@@ -204,6 +214,16 @@ jobs:
             dist/nextunnel-${{ env.RELEASE_VERSION }}-darwin-universal.dmg
             dist/nextunnel-${{ env.RELEASE_VERSION }}-darwin-universal.dmg.sha256
             dist/nextunnel-${{ env.RELEASE_VERSION }}-darwin-universal.MANIFEST.txt
+
+      - name: Upload signed macOS PKG assets
+        if: steps.macos-signing.outputs.signing_enabled == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_VERSION }}
+          body_path: docs/deploy/release-notes-v0.6.4-alpha.md
+          prerelease: ${{ contains(env.RELEASE_VERSION, '-alpha') || contains(env.RELEASE_VERSION, '-beta') || contains(env.RELEASE_VERSION, '-rc') }}
+          overwrite_files: true
+          files: |
             dist/nextunnel-${{ env.RELEASE_VERSION }}-darwin-universal.pkg
             dist/nextunnel-${{ env.RELEASE_VERSION }}-darwin-universal.pkg.sha256
 
@@ -232,6 +252,10 @@ jobs:
           prerelease: ${{ contains(env.RELEASE_VERSION, '-alpha') || contains(env.RELEASE_VERSION, '-beta') || contains(env.RELEASE_VERSION, '-rc') }}
           overwrite_files: true
           files: |
+            dist/nextunnel-cli-${{ env.RELEASE_VERSION }}-darwin-amd64.tar.gz
+            dist/nextunnel-cli-${{ env.RELEASE_VERSION }}-darwin-amd64.tar.gz.sha256
+            dist/nextunnel-cli-${{ env.RELEASE_VERSION }}-darwin-arm64.tar.gz
+            dist/nextunnel-cli-${{ env.RELEASE_VERSION }}-darwin-arm64.tar.gz.sha256
             dist/nextunnel-cli-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz
             dist/nextunnel-cli-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz.sha256
             dist/nextunnel-cli-${{ env.RELEASE_VERSION }}-linux-arm64.tar.gz

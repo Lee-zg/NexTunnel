@@ -7,15 +7,16 @@ import (
 	"time"
 
 	"github.com/nextunnel/desktop/internal/virtualnet"
+	"github.com/nextunnel/pkg/macoshelperctl"
 )
 
 const (
-	HelperLabel           = "com.nextunnel.helper"
-	HelperExecutableName  = "nextunnel-helper"
-	HelperSocketDirectory = "/var/run/nextunnel"
-	DefaultSocketPath     = HelperSocketDirectory + "/helper.sock"
-	DefaultHelperPath     = "/Library/PrivilegedHelperTools/" + HelperExecutableName
-	LaunchDaemonPath      = "/Library/LaunchDaemons/" + HelperLabel + ".plist"
+	HelperLabel           = macoshelperctl.HelperLabel
+	HelperExecutableName  = macoshelperctl.HelperExecutableName
+	HelperSocketDirectory = macoshelperctl.HelperSocketDirectory
+	DefaultSocketPath     = macoshelperctl.DefaultSocketPath
+	DefaultHelperPath     = macoshelperctl.DefaultHelperPath
+	LaunchDaemonPath      = macoshelperctl.LaunchDaemonPath
 	ProtocolVersion       = "1"
 
 	actionStatus     = "status"
@@ -30,12 +31,17 @@ type Client struct {
 }
 
 type Status struct {
-	Running         bool   `json:"running"`
-	Version         string `json:"version"`
-	ProtocolVersion string `json:"protocol_version"`
-	Signed          bool   `json:"signed"`
-	SocketPath      string `json:"socket_path"`
-	Message         string `json:"message,omitempty"`
+	Supported        bool   `json:"supported"`
+	Installed        bool   `json:"installed"`
+	Running          bool   `json:"running"`
+	Version          string `json:"version"`
+	ProtocolVersion  string `json:"protocol_version"`
+	Signed           bool   `json:"signed"`
+	SocketPath       string `json:"socket_path"`
+	SocketReady      bool   `json:"socket_ready"`
+	HelperPath       string `json:"helper_path"`
+	LaunchDaemonPath string `json:"launch_daemon_path"`
+	Message          string `json:"message,omitempty"`
 }
 
 type CreateTUNRequest struct {

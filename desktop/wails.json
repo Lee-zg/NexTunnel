@@ -1,9 +1,9 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
   "name": "NexTunnel",
-  "outputfilename": "nextunnel",
+  "outputfilename": "NexTunnel",
   "productName": "NexTunnel",
-  "productVersion": "0.6.3",
+  "productVersion": "0.6.4-alpha",
   "frontend:install": "npm install",
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
@@ -15,7 +15,7 @@
   "info": {
     "companyName": "NexTunnel Contributors",
     "productName": "NexTunnel",
-    "productVersion": "0.6.3",
+    "productVersion": "0.6.4-alpha",
     "copyright": "Copyright 2026 NexTunnel Contributors",
     "comments": "NexTunnel desktop v0.6.4-alpha release"
   }

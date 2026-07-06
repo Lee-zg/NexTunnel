@@ -12,7 +12,7 @@ NexTunnel 是一套开源内网穿透、P2P 直连优先和可视化运维工具
 | --- | --- |
 | [快速开始](docs/guide/getting-started.md) | 10 分钟部署服务端、连接桌面端、创建第一条隧道 |
 | [桌面端指南](docs/desktop/overview.md) | 连接、隧道、端口扫描、网络健康、日志和设置 |
-| [CLI 手册](docs/cli/overview.md) | `nextunnel server/config/remote/desktop/doctor` 命令 |
+| [CLI 手册](docs/cli/overview.md) | `nextunnel server/config/remote/desktop/helper/doctor` 命令 |
 | [服务端部署](docs/deploy/server.md) | `install.sh`、`install.ps1`、Docker Compose、端口和 HTTPS |
 | [Dashboard 运维](docs/dashboard/operations.md) | 登录、RBAC、客户端监控、ACL、告警、审计 |
 | [架构说明](docs/guide/architecture.md) | 组件职责、数据流、接口和生产边界 |
@@ -29,7 +29,7 @@ NexTunnel 是一套开源内网穿透、P2P 直连优先和可视化运维工具
 | Dashboard | 已支持登录、RBAC、节点、客户端、流量、ACL、告警、审计和配置状态 |
 | 桌面端 | 已支持 Relay 连接、TCP/HTTP 隧道、本机端口扫描、运行日志、设置导入导出 |
 | P2P/NAT | 已支持 STUN/NAT 探测、P2P 状态展示和验证工具链 |
-| 系统 TUN | Windows 随包 Wintun；macOS 通过 signed/notarized pkg 安装 LaunchDaemon helper 后启用 System TUN |
+| 系统 TUN | Windows 随包 Wintun；macOS 通过用户提权安装官方内置 LaunchDaemon helper 后启用 System TUN |
 | 生产验证 | 已提供 Dashboard、SSH 隧道、P2P/TUN、Edge/Anycast、eBPF Linux 验证脚本 |
 
 ## 架构概览
@@ -69,7 +69,7 @@ flowchart LR
 | --- | --- |
 | 桌面端运行 | Windows 10/11、macOS 或 Linux 桌面环境 |
 | Windows TUN | 官方匹配架构 `wintun.dll`，首次创建适配器需要管理员权限 |
-| macOS TUN | DMG 仅提供 Relay/P2P；System TUN 需要安装 signed/notarized pkg，加载 `com.nextunnel.helper` LaunchDaemon |
+| macOS TUN | Relay/P2P 普通运行；System TUN 需要在网络页安装 Helper，或执行 `sudo nextunnel helper install` 加载 `com.nextunnel.helper` LaunchDaemon |
 | 服务端二进制部署 | Linux amd64/arm64 或 Windows amd64 |
 | 本地开发 | Go `1.25.0`、Node.js `>=18`、Wails v2、PowerShell 或 GNU Make |
 | 容器部署 | Docker / Docker Compose |
@@ -406,7 +406,7 @@ sudo ./install.sh install \
 
 ### macOS 系统 TUN 当前是什么状态？
 
-v0.6.4-alpha 中 macOS P2P/Relay 能力可通过 DMG 使用；系统路由 TUN 需要安装 signed/notarized pkg，由 `com.nextunnel.helper` LaunchDaemon 创建 utun 并注入路由。没有 `dist/verification/tun-macos-latest.json` 真实报告前，不应把 macOS 系统 TUN 宣称为生产通过。
+v0.6.4-alpha 中 macOS P2P/Relay 可普通运行；系统路由 TUN 改为官方内置可选 helper，由用户在网络页授权安装，或执行 `sudo nextunnel helper install`。helper 以 LaunchDaemon 形式运行，负责创建 utun、fd passing 和受控路由应用/清理。signed/notarized PKG 只是更顺滑的分发增强；没有 `dist/verification/tun-macos-latest.json` 真实报告前，不应把 macOS 系统 TUN 宣称为生产通过。
 
 更多问题见 [FAQ](docs/faq.md)。
 
