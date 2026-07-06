@@ -203,6 +203,47 @@ jobs:
         shell: bash
         run: security delete-keychain "$RUNNER_TEMP/nextunnel-signing.keychain-db" >/dev/null 2>&1 || true
 
+      - name: Delete stale macOS PKG assets
+        if: steps.macos-signing.outputs.signing_enabled != 'true'
+        uses: actions/github-script@v7
+        env:
+          RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
+        with:
+          script: |
+            const stalePkgAssets = [
+              `nextunnel-${process.env.RELEASE_VERSION}-darwin-universal.pkg`,
+              `nextunnel-${process.env.RELEASE_VERSION}-darwin-universal.pkg.sha256`,
+            ];
+
+            let release;
+            try {
+              const response = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: process.env.RELEASE_VERSION,
+              });
+              release = response.data;
+            } catch (error) {
+              if (error.status === 404) {
+                core.info(`Release ${process.env.RELEASE_VERSION} does not exist yet; no stale PKG assets to delete.`);
+                return;
+              }
+              throw error;
+            }
+
+            // 无 Apple 签名资源时只发布 unsigned DMG，避免保留旧 PKG 误导用户。
+            for (const asset of release.assets) {
+              if (!stalePkgAssets.includes(asset.name)) {
+                continue;
+              }
+              await github.rest.repos.deleteReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                asset_id: asset.id,
+              });
+              core.info(`Deleted stale asset ${asset.name}.`);
+            }
+
       - name: Upload macOS DMG assets
         uses: softprops/action-gh-release@v2
         with:
