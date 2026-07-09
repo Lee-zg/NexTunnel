@@ -2,7 +2,7 @@
 
 NexTunnel 是一套开源内网穿透、P2P 直连优先和可视化运维工具。它提供桌面客户端、统一 CLI、Relay 中继、Control Plane、Dashboard、NAT/STUN 探测和生产验证脚本，适合把本地开发服务、内网 Web、数据库管理入口或自部署节点安全地暴露给受控访问方。
 
-当前版本：`v0.6.4-alpha`
+当前版本：`v0.6.5-alpha`
 
 > 设计目标：像 FRP/NPS 一样快速完成内网服务暴露，同时提供更明确的桌面体验、服务端可观测性、P2P/TUN 诊断和发布前生产验收路径。
 
@@ -80,11 +80,11 @@ flowchart LR
 
 ```bash
 curl -fL -o /tmp/nextunnel-install.sh \
-  https://github.com/Lee-zg/NexTunnel/releases/download/v0.6.4-alpha/install.sh
+  https://github.com/Lee-zg/NexTunnel/releases/download/v0.6.5-alpha/install.sh
 chmod +x /tmp/nextunnel-install.sh
 
 sudo /tmp/nextunnel-install.sh install \
-  --version v0.6.4-alpha \
+  --version v0.6.5-alpha \
   --public-host example.com \
   --relay-token <strong-relay-token> \
   --control-token <strong-control-token> \
@@ -116,11 +116,11 @@ sudo /opt/nextunnel/deploy/server/install.sh logs --no-log-follow --log-lines 80
 
 ```powershell
 Invoke-WebRequest `
-  -Uri "https://github.com/Lee-zg/NexTunnel/releases/download/v0.6.4-alpha/install.ps1" `
+  -Uri "https://github.com/Lee-zg/NexTunnel/releases/download/v0.6.5-alpha/install.ps1" `
   -OutFile ".\install.ps1"
 
 .\install.ps1 -Action install `
-  -Version v0.6.4-alpha `
+  -Version v0.6.5-alpha `
   -PublicHost "example.com" `
   -RelayToken "<strong-relay-token>" `
   -ControlToken "<strong-control-token>" `
@@ -135,7 +135,7 @@ Invoke-WebRequest `
 .\install.ps1 -Action health
 .\install.ps1 -Action logs
 .\install.ps1 -Action restart
-.\install.ps1 -Action update -Version v0.6.4-alpha
+.\install.ps1 -Action update -Version v0.6.5-alpha
 ```
 
 ### 3. Docker Compose 试用
@@ -219,7 +219,7 @@ nextunnel desktop network apply
 `deploy/server/.env` 最小生产配置示例：
 
 ```dotenv
-NEXTUNNEL_VERSION=v0.6.4-alpha
+NEXTUNNEL_VERSION=v0.6.5-alpha
 NEXTUNNEL_PUBLIC_HOST=example.com
 
 RELAY_BIND=0.0.0.0
@@ -355,8 +355,8 @@ Windows PowerShell：
 | 验证脚本静态校验 | `make verify-scripts-static` | `.\make.ps1 verify-scripts-static` |
 | 桌面构建 | `make build` | `.\make.ps1 build` |
 | 服务端构建 | `make build-server` | `.\make.ps1 build-server` |
-| CLI 打包 | `make package-cli VERSION=v0.6.4-alpha` | `.\scripts\package-cli.ps1 -Version v0.6.4-alpha` |
-| 服务端打包 | `make package-server VERSION=v0.6.4-alpha` | `.\scripts\package-server.ps1 -Version v0.6.4-alpha` |
+| CLI 打包 | `make package-cli VERSION=v0.6.5-alpha` | `.\scripts\package-cli.ps1 -Version v0.6.5-alpha` |
+| 服务端打包 | `make package-server VERSION=v0.6.5-alpha` | `.\scripts\package-server.ps1 -Version v0.6.5-alpha` |
 | 文档构建 | `cd docs && npm run docs:build` | `cd docs; npm run docs:build` |
 
 ## 生产验证
@@ -398,7 +398,7 @@ Windows 的 `netsh` 在目标接口不存在或接口名未被识别时可能返
 
 ```bash
 sudo ./install.sh install \
-  --release-base-url https://cos.example.com/nextunnel/v0.6.4-alpha \
+  --release-base-url https://cos.example.com/nextunnel/v0.6.5-alpha \
   --sha256 <sha256>
 ```
 
@@ -406,7 +406,7 @@ sudo ./install.sh install \
 
 ### macOS 系统 TUN 当前是什么状态？
 
-v0.6.4-alpha 中 macOS P2P/Relay 可普通运行；系统路由 TUN 改为官方内置可选 helper，由用户在网络页授权安装，或执行 `sudo nextunnel helper install`。helper 以 LaunchDaemon 形式运行，负责创建 utun、fd passing 和受控路由应用/清理。signed/notarized PKG 只是更顺滑的分发增强；没有 `dist/verification/tun-macos-latest.json` 真实报告前，不应把 macOS 系统 TUN 宣称为生产通过。
+v0.6.5-alpha 中 macOS P2P/Relay 可普通运行；系统路由 TUN 改为官方内置可选 helper，由用户在网络页授权安装，或执行 `sudo nextunnel helper install`。helper 以 LaunchDaemon 形式运行，负责创建 utun、fd passing 和受控路由应用/清理。signed/notarized PKG 只是更顺滑的分发增强；没有 `dist/verification/tun-macos-latest.json` 真实报告前，不应把 macOS 系统 TUN 宣称为生产通过。
 
 更多问题见 [FAQ](docs/faq.md)。
 

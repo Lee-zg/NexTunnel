@@ -1,6 +1,6 @@
 # 架构说明
 
-NexTunnel 由桌面客户端、统一 CLI、Relay、Control Plane、NAT Detector、Dashboard 和验证工具链组成。v0.6.4-alpha 的重点是把“能部署、能连接、能观察、能恢复”的生产闭环打通。
+NexTunnel 由桌面客户端、统一 CLI、Relay、Control Plane、NAT Detector、Dashboard 和验证工具链组成。v0.6.5-alpha 的重点是把“能部署、能连接、能观察、能恢复”的生产闭环打通。
 
 ## 组件关系
 

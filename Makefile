@@ -1,6 +1,6 @@
 .PHONY: all dev dev-server-web build package-cli package-server package-desktop package-macos lint test verify-scripts-static verify-edge verify-ebpf-linux verify-tun verify-p2p-tun verify-dashboard verify-dashboard-ssh clean help
 
-VERSION ?= v0.6.4-alpha
+VERSION ?= v0.6.5-alpha
 WAILS_BUILD_TAGS ?= desktop,wv2runtime.download,production
 APP_BUNDLE_EXECUTABLE ?= NexTunnel
 WINTUN_SHA256 ?= 07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51

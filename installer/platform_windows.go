@@ -87,11 +87,12 @@ func (windowsPlatform) StopProcess(executableName string) error {
 	if err == nil {
 		return nil
 	}
+	outputMessage := decodeWindowsCommandOutput(output)
 	// taskkill 在进程不存在时会返回错误；安装时把它视为可继续状态。
-	if strings.Contains(string(output), "not found") || strings.Contains(string(output), "未找到") {
+	if isTaskkillProcessNotFound(outputMessage) {
 		return nil
 	}
-	return fmt.Errorf("停止旧版本进程失败：%s: %w", strings.TrimSpace(string(output)), err)
+	return fmt.Errorf("停止旧版本进程失败：%s: %w", outputMessage, err)
 }
 
 func (windowsPlatform) WriteUninstallInfo(info UninstallInfo) error {
@@ -192,9 +193,17 @@ $shortcut.Save()`
 	command := exec.Command("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script, shortcutPath, targetPath, workingDir, description)
 	output, err := command.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("创建快捷方式 %s: %s: %w", shortcutPath, strings.TrimSpace(string(output)), err)
+		return fmt.Errorf("创建快捷方式 %s: %s: %w", shortcutPath, decodeWindowsCommandOutput(output), err)
 	}
 	return nil
+}
+
+func isTaskkillProcessNotFound(output string) bool {
+	normalized := strings.ToLower(output)
+	return strings.Contains(normalized, "not found") ||
+		strings.Contains(normalized, "could not be found") ||
+		strings.Contains(output, "未找到") ||
+		strings.Contains(output, "没有找到")
 }
 
 func scheduleDirectoryRemoval(path string) error {

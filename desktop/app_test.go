@@ -198,7 +198,7 @@ func TestCheckForUpdateUsesReleaseAssetAndSemver(t *testing.T) {
 	withUpdateCheckServer(t, server)
 
 	originalVersion := AppVersion
-	AppVersion = "0.6.4-alpha"
+	AppVersion = "0.6.5-alpha"
 	t.Cleanup(func() { AppVersion = originalVersion })
 
 	info, err := app.CheckForUpdate()
@@ -220,7 +220,7 @@ func TestUpdateInfoFromReleaseDoesNotPromptForSameOldOrInvalidVersion(t *testing
 		current string
 		latest  string
 	}{
-		{name: "same", current: "0.6.4-alpha", latest: "v0.6.4-alpha"},
+		{name: "same", current: "0.6.5-alpha", latest: "v0.6.5-alpha"},
 		{name: "old", current: "0.6.3", latest: "v0.6.1"},
 		{name: "invalid latest", current: "0.6.3", latest: "nightly"},
 		{name: "invalid current", current: "dev", latest: "v0.7.0"},

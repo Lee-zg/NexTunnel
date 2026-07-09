@@ -12,7 +12,7 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $RepoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$DefaultVersion = "v0.6.4-alpha"
+$DefaultVersion = "v0.6.5-alpha"
 $DefaultWintunSha256 = "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51"
 $DefaultMacHost = "10.160.166.44"
 $DefaultMacUser = "lizhigang"

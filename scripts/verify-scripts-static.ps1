@@ -142,6 +142,28 @@ function Test-BashCommandUsesWsl {
   return $CommandInfo.Source -match "\\Windows\\System32\\bash.exe$" -or $CommandInfo.Source -match "\\System32\\bash.exe$"
 }
 
+function Test-WslBashUsable {
+  param([object]$CommandInfo)
+
+  if (-not (Test-BashCommandUsesWsl -CommandInfo $CommandInfo)) {
+    return $true
+  }
+  $wsl = Get-Command "wsl.exe" -ErrorAction SilentlyContinue
+  if ($null -eq $wsl) {
+    return $false
+  }
+  $output = & $wsl.Source --list --quiet 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    return $false
+  }
+  foreach ($line in $output) {
+    if (-not [string]::IsNullOrWhiteSpace($line.ToString())) {
+      return $true
+    }
+  }
+  return $false
+}
+
 function ConvertTo-BashPath {
   param(
     [string]$Path,
@@ -181,20 +203,20 @@ $parameterContracts = @(
   @{
     Script = "scripts/package-cli.ps1"
     Parameters = @(
-      @{ Name = "Version"; Type = "String"; Default = "v0.6.4-alpha" }
+      @{ Name = "Version"; Type = "String"; Default = "v0.6.5-alpha" }
     )
   },
   @{
     Script = "scripts/package-server.ps1"
     Parameters = @(
-      @{ Name = "Version"; Type = "String"; Default = "v0.6.4-alpha" },
+      @{ Name = "Version"; Type = "String"; Default = "v0.6.5-alpha" },
       @{ Name = "SkipWeb"; Type = "SwitchParameter" }
     )
   },
   @{
     Script = "scripts/package-desktop.ps1"
     Parameters = @(
-      @{ Name = "Version"; Type = "String"; Default = "v0.6.4-alpha" },
+      @{ Name = "Version"; Type = "String"; Default = "v0.6.5-alpha" },
       @{ Name = "Platform"; Type = "String"; Default = "windows/amd64" },
       @{ Name = "WintunMode"; Type = "String"; Default = "bundled" },
       @{ Name = "WintunDllPath"; Type = "String" },
@@ -261,6 +283,11 @@ $bashScripts = @(
 $bash = Get-Command "bash" -ErrorAction SilentlyContinue
 if ($null -eq $bash) {
   $results.Add((New-Result -Name "bash_syntax" -Passed $true -Detail "bash not found; skipped")) | Out-Null
+} elseif (-not (Test-WslBashUsable -CommandInfo $bash)) {
+  # Windows 自带 WSL bash 但没有安装发行版时无法执行语法检查，按本机能力缺失处理。
+  foreach ($relativePath in $bashScripts) {
+    $results.Add((New-Result -Name "bash_syntax:$relativePath" -Passed $true -Detail "WSL bash not usable; skipped")) | Out-Null
+  }
 } else {
   $bashUsesWsl = Test-BashCommandUsesWsl -CommandInfo $bash
   foreach ($relativePath in $bashScripts) {

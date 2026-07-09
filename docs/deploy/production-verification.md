@@ -27,7 +27,7 @@ Release notes 必须使用以下状态，不得把外部条件未满足的能力
 | 生产压测通过 | 有隔离压测数据，包含吞吐、延迟、CPU 和清理结果。 |
 | 外部阻塞 | 域名、证书、驱动、权限、资源或维护窗口尚未满足。 |
 
-## v0.6.4-alpha 验证进度
+## v0.6.5-alpha 验证进度
 
 截至 2026-07-03，工程侧已完成生产验证入口、报告结构、故障前置检查和 macOS LaunchDaemon helper 链路，并在两台公网服务器上推进了 Dashboard、eBPF 和 Edge 演练。macOS System TUN 主路径已调整为官方内置可选 helper：桌面端普通运行，用户通过网络页管理员授权或 `sudo nextunnel helper install` 安装 root LaunchDaemon。signed/notarized PKG 保留为更顺滑的分发增强，不再阻塞开源默认验证路径。当前尚未生成 `tun-macos-latest.json`。剩余实机验收以域名证书、系统驱动、管理员权限、授权环境和报告归档为主：
 
@@ -40,7 +40,7 @@ Release notes 必须使用以下状态，不得把外部条件未满足的能力
 | Linux eBPF XDP | 功能验收已通过 | 服务器二 Linux 6.8、`eth0`、`skb` 模式完成 BPF 对象编译、XDP 挂载、DROP 规则同步、统计读取和卸载；吞吐/延迟压力基准仍需隔离窗口补充。 |
 | 多地域 Edge/Anycast | 远端 Control Plane 演练已通过 | 本地 3 区域演练和服务器二真实 Control Plane 注册/心跳/清理均通过；商用生产仍需真实多地域节点与观测指标压测。 |
 
-发布边界：v0.6.4-alpha 可以声明生产验证工具链、Relay Admin API、Dashboard 客户端监控和故障诊断能力已齐备，P2P 直连链路、Dashboard API、eBPF XDP 功能挂载和 Edge/Anycast 远端注册链路已验证；真实系统 TUN、Dashboard 公网 HTTPS、eBPF 压力基准和真实多地域拓扑仍需在具备权限和依赖的生产或隔离环境完成最终验收。README 与用户手册只按这个边界描述能力，不把外部条件未满足的能力写成默认生产可用。
+发布边界：v0.6.5-alpha 可以声明生产验证工具链、Relay Admin API、Dashboard 客户端监控和故障诊断能力已齐备，P2P 直连链路、Dashboard API、eBPF XDP 功能挂载和 Edge/Anycast 远端注册链路已验证；真实系统 TUN、Dashboard 公网 HTTPS、eBPF 压力基准和真实多地域拓扑仍需在具备权限和依赖的生产或隔离环境完成最终验收。README 与用户手册只按这个边界描述能力，不把外部条件未满足的能力写成默认生产可用。
 
 阻塞项最佳处理方案：
 
@@ -124,21 +124,21 @@ codesign --verify --strict --verbose=2 /Library/PrivilegedHelperTools/nextunnel-
 如使用 signed/notarized PKG 增强通道，还应确认：
 
 ```bash
-sudo installer -pkg "dist/nextunnel-v0.6.4-alpha-darwin-universal.pkg" -target /
+sudo installer -pkg "dist/nextunnel-v0.6.5-alpha-darwin-universal.pkg" -target /
 pkgutil --pkg-info com.nextunnel.desktop
-pkgutil --check-signature "dist/nextunnel-v0.6.4-alpha-darwin-universal.pkg"
-spctl -a -vv -t install "dist/nextunnel-v0.6.4-alpha-darwin-universal.pkg"
-xcrun stapler validate "dist/nextunnel-v0.6.4-alpha-darwin-universal.pkg"
-xcrun stapler validate "dist/nextunnel-v0.6.4-alpha-darwin-universal.dmg"
+pkgutil --check-signature "dist/nextunnel-v0.6.5-alpha-darwin-universal.pkg"
+spctl -a -vv -t install "dist/nextunnel-v0.6.5-alpha-darwin-universal.pkg"
+xcrun stapler validate "dist/nextunnel-v0.6.5-alpha-darwin-universal.pkg"
+xcrun stapler validate "dist/nextunnel-v0.6.5-alpha-darwin-universal.dmg"
 ```
 
 没有 Apple Developer Program 时，可先执行 unsigned-alpha DMG 技术验证：
 
 ```bash
-make package-macos VERSION=v0.6.4-alpha
-grep '^Signing:' dist/nextunnel-v0.6.4-alpha-darwin-universal.MANIFEST.txt
-shasum -a 256 -c dist/nextunnel-v0.6.4-alpha-darwin-universal.dmg.sha256
-hdiutil verify dist/nextunnel-v0.6.4-alpha-darwin-universal.dmg
+make package-macos VERSION=v0.6.5-alpha
+grep '^Signing:' dist/nextunnel-v0.6.5-alpha-darwin-universal.MANIFEST.txt
+shasum -a 256 -c dist/nextunnel-v0.6.5-alpha-darwin-universal.dmg.sha256
+hdiutil verify dist/nextunnel-v0.6.5-alpha-darwin-universal.dmg
 ```
 
 `Signing: unsigned-alpha` 可用于开源 alpha 分发和授权测试机上的 helper/TUN 技术链路验证；不要把 unsigned-alpha 包本身写成真实环境功能验收通过，真实通过仍以 `-MacUseHelper` JSON 报告为准。

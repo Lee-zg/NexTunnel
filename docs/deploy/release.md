@@ -1,30 +1,30 @@
 # 发布流程
 
-v0.6.4-alpha 使用统一版本号发布桌面端安装器、CLI、服务端包、一键安装脚本、验证工具和 VitePress 文档站。
+v0.6.5-alpha 使用统一版本号发布桌面端安装器、CLI、服务端包、一键安装脚本、验证工具和 VitePress 文档站。
 
-本版本发布说明见 [v0.6.4-alpha Release Notes](./release-notes-v0.6.4-alpha.md)。其中 macOS System TUN 只能声明 helper 链路开发完成和本地测试通过；没有 `-MacUseHelper` 实机 JSON 报告前，不能标注生产通过。
+本版本发布说明见 [v0.6.5-alpha Release Notes](./release-notes-v0.6.5-alpha.md)。其中 macOS System TUN 只能声明 helper 链路开发完成和本地测试通过；没有 `-MacUseHelper` 实机 JSON 报告前，不能标注生产通过。
 
 ## 本地打包
 
 ```bash
-make package-desktop VERSION=v0.6.4-alpha
-make package-macos VERSION=v0.6.4-alpha
-make package-cli VERSION=v0.6.4-alpha
-make package-server VERSION=v0.6.4-alpha
+make package-desktop VERSION=v0.6.5-alpha
+make package-macos VERSION=v0.6.5-alpha
+make package-cli VERSION=v0.6.5-alpha
+make package-server VERSION=v0.6.5-alpha
 ```
 
 Windows PowerShell：
 
 ```powershell
-.\scripts\package-desktop.ps1 -Version v0.6.4-alpha -WintunMode bundled
-.\scripts\package-cli.ps1 -Version v0.6.4-alpha
-.\scripts\package-server.ps1 -Version v0.6.4-alpha
+.\scripts\package-desktop.ps1 -Version v0.6.5-alpha -WintunMode bundled
+.\scripts\package-cli.ps1 -Version v0.6.5-alpha
+.\scripts\package-server.ps1 -Version v0.6.5-alpha
 ```
 
 macOS DMG 只能在 macOS 本机或 macOS runner 构建：
 
 ```bash
-bash scripts/package-macos.sh --version v0.6.4-alpha
+bash scripts/package-macos.sh --version v0.6.5-alpha
 ```
 
 默认产物是 unsigned DMG，manifest 会标记 `Signing: unsigned-alpha`。DMG 内置 `nextunnel-helper`、LaunchDaemon plist 和固定安装脚本，用户可在网络页输入管理员密码安装 helper；也可使用 CLI：
@@ -39,7 +39,7 @@ sudo nextunnel helper uninstall
 未签名 DMG 可作为开源 alpha 分发或授权技术验证入口，但不能单独作为 macOS System TUN 生产通过依据。若需要本机生成 unsigned PKG 做安装器链路验证，可显式执行：
 
 ```bash
-MACOS_BUILD_PKG=true make package-macos VERSION=v0.6.4-alpha
+MACOS_BUILD_PKG=true make package-macos VERSION=v0.6.5-alpha
 ```
 
 Developer ID 签名和公证是可选增强通道。执行前需要在本机 Keychain 或 CI 临时 Keychain 中具备 Developer ID Application / Installer 证书，并设置 notarytool 凭据：
@@ -51,7 +51,7 @@ export MACOS_NOTARY_APPLE_ID="apple-id@example.com"
 export MACOS_NOTARY_TEAM_ID="TEAMID"
 export MACOS_NOTARY_PASSWORD="<app-specific-password-or-keychain-profile-password>"
 
-MACOS_SIGN=true MACOS_NOTARIZE=true make package-macos VERSION=v0.6.4-alpha
+MACOS_SIGN=true MACOS_NOTARIZE=true make package-macos VERSION=v0.6.5-alpha
 ```
 
 签名模式下脚本会对 `.app`、内置和外置 `nextunnel-helper`、`.pkg` 执行签名验证，对 `.dmg` 和 `.pkg` 执行 notarization、staple 和 stapler validate；任一步失败都不会上传可宣称生产通过的 macOS System TUN 产物。
@@ -76,7 +76,7 @@ Windows 自定义 Wails 安装器默认使用 `-WintunMode bundled`：
 
 ```powershell
 .\scripts\package-desktop.ps1 `
-  -Version v0.6.4-alpha `
+  -Version v0.6.5-alpha `
   -WintunMode bundled `
   -WintunSha256 "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51"
 ```
@@ -85,7 +85,7 @@ Windows 自定义 Wails 安装器默认使用 `-WintunMode bundled`：
 
 ```powershell
 .\scripts\package-desktop.ps1 `
-  -Version v0.6.4-alpha `
+  -Version v0.6.5-alpha `
   -WintunDllPath "D:\path\to\wintun.dll"
 ```
 
@@ -93,7 +93,7 @@ zip 便携包缺少 DLL 时，桌面端网络页会显示 Wintun 状态，并提
 
 ## GitHub Release
 
-推送 `v0.6.4-alpha` 标签会触发 `.github/workflows/release.yml`。
+推送 `v0.6.5-alpha` 标签会触发 `.github/workflows/release.yml`。
 
 macOS Release job 支持两档输出：缺少签名 secrets 时上传 unsigned DMG；以下 GitHub Secrets 完整时额外生成并上传 signed/notarized PKG：
 
@@ -113,25 +113,25 @@ MACOS_NOTARY_PASSWORD
 发布资产：
 
 ```text
-nextunnel-v0.6.4-alpha-windows-amd64-installer.exe
-nextunnel-v0.6.4-alpha-windows-amd64-installer.exe.sha256
-nextunnel-v0.6.4-alpha-windows-amd64-installer.MANIFEST.txt
-nextunnel-v0.6.4-alpha-windows-amd64.zip
-nextunnel-v0.6.4-alpha-windows-amd64.zip.sha256
-nextunnel-v0.6.4-alpha-darwin-universal.dmg
-nextunnel-v0.6.4-alpha-darwin-universal.dmg.sha256
-nextunnel-v0.6.4-alpha-darwin-universal.MANIFEST.txt
-nextunnel-v0.6.4-alpha-darwin-universal.pkg                 # 仅 signed/notarized 通道
-nextunnel-v0.6.4-alpha-darwin-universal.pkg.sha256          # 仅 signed/notarized 通道
-nextunnel-cli-v0.6.4-alpha-darwin-amd64.tar.gz
-nextunnel-cli-v0.6.4-alpha-darwin-arm64.tar.gz
-nextunnel-cli-v0.6.4-alpha-linux-amd64.tar.gz
-nextunnel-cli-v0.6.4-alpha-linux-arm64.tar.gz
-nextunnel-cli-v0.6.4-alpha-windows-amd64.zip
+nextunnel-v0.6.5-alpha-windows-amd64-installer.exe
+nextunnel-v0.6.5-alpha-windows-amd64-installer.exe.sha256
+nextunnel-v0.6.5-alpha-windows-amd64-installer.MANIFEST.txt
+nextunnel-v0.6.5-alpha-windows-amd64.zip
+nextunnel-v0.6.5-alpha-windows-amd64.zip.sha256
+nextunnel-v0.6.5-alpha-darwin-universal.dmg
+nextunnel-v0.6.5-alpha-darwin-universal.dmg.sha256
+nextunnel-v0.6.5-alpha-darwin-universal.MANIFEST.txt
+nextunnel-v0.6.5-alpha-darwin-universal.pkg                 # 仅 signed/notarized 通道
+nextunnel-v0.6.5-alpha-darwin-universal.pkg.sha256          # 仅 signed/notarized 通道
+nextunnel-cli-v0.6.5-alpha-darwin-amd64.tar.gz
+nextunnel-cli-v0.6.5-alpha-darwin-arm64.tar.gz
+nextunnel-cli-v0.6.5-alpha-linux-amd64.tar.gz
+nextunnel-cli-v0.6.5-alpha-linux-arm64.tar.gz
+nextunnel-cli-v0.6.5-alpha-windows-amd64.zip
 nextunnel-server-linux-amd64.tar.gz
 nextunnel-server-linux-arm64.tar.gz
 nextunnel-server-windows-amd64.zip
-nextunnel-docs-v0.6.4-alpha.tar.gz
+nextunnel-docs-v0.6.5-alpha.tar.gz
 install.sh
 install.ps1
 *.sha256
@@ -148,7 +148,7 @@ cd docs
 npm run docs:build
 ```
 
-Release workflow 会打包 `nextunnel-docs-v0.6.4-alpha.tar.gz`，并同步发布到 GitHub Pages。首次启用前需要在仓库 Pages 设置中选择 `GitHub Actions` 发布模式。
+Release workflow 会打包 `nextunnel-docs-v0.6.5-alpha.tar.gz`，并同步发布到 GitHub Pages。首次启用前需要在仓库 Pages 设置中选择 `GitHub Actions` 发布模式。
 
 站点地址：
 
@@ -207,7 +207,7 @@ sudo INTERFACE_NAME=eth0 make verify-ebpf-linux
 - `install.sh` 和 `install.ps1` 可从 Release 下载。
 - Linux 一键安装后 `nextunnel server health` 通过。
 - Dashboard HTTPS 或 SSH 隧道验证通过。
-- 文档站可访问，导航显示 `v0.6.4-alpha`。
+- 文档站可访问，导航显示 `v0.6.5-alpha`。
 
 ## 能力边界
 

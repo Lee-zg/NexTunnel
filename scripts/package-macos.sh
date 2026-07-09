@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="v0.6.4-alpha"
+VERSION="v0.6.5-alpha"
 PLATFORM="darwin/universal"
 SKIP_FRONTEND="false"
 SIGN="false"

@@ -1,5 +1,13 @@
 # 更新日志
 
+## v0.6.5-alpha
+
+- 版本入口统一升级到 `v0.6.5-alpha` / `0.6.5-alpha`，同步桌面端、Dashboard、CLI、服务端打包脚本、前端包元数据、部署示例、发布流程和文档站口径。
+- 修复 Windows 自定义安装器在中文系统上展示安装失败原因时出现乱码的问题，统一解码 GB18030、UTF-16LE 和 UTF-8 命令输出。
+- 修复 Windows 升级安装时 `taskkill.exe` 返回“未找到/没有找到进程”却被误判为安装失败的问题，无旧进程运行时继续安装。
+- GitHub Release workflow 切换到 `v0.6.5-alpha` 发布说明，确保重新发布的 Release 页面、资源名和文档口径一致。
+- macOS System TUN 按已处理后的当前代码重新打包；真实生产通过仍以归档的 macOS helper/TUN 验收报告为准。
+
 ## v0.6.4-alpha
 
 - 版本入口统一升级到 `v0.6.4-alpha` / `0.6.4-alpha`，同步桌面端、Dashboard、CLI、服务端打包脚本、前端包元数据、部署示例、发布流程和文档站口径。

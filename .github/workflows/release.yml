@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release tag, for example v0.6.4-alpha'
+        description: 'Release tag, for example v0.6.5-alpha'
         required: true
         type: string
 
@@ -83,7 +83,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_VERSION }}
-          body_path: docs/deploy/release-notes-v0.6.4-alpha.md
+          body_path: docs/deploy/release-notes-v0.6.5-alpha.md
           prerelease: ${{ contains(env.RELEASE_VERSION, '-alpha') || contains(env.RELEASE_VERSION, '-beta') || contains(env.RELEASE_VERSION, '-rc') }}
           overwrite_files: true
           files: |
@@ -248,7 +248,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_VERSION }}
-          body_path: docs/deploy/release-notes-v0.6.4-alpha.md
+          body_path: docs/deploy/release-notes-v0.6.5-alpha.md
           prerelease: ${{ contains(env.RELEASE_VERSION, '-alpha') || contains(env.RELEASE_VERSION, '-beta') || contains(env.RELEASE_VERSION, '-rc') }}
           overwrite_files: true
           files: |
@@ -261,7 +261,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_VERSION }}
-          body_path: docs/deploy/release-notes-v0.6.4-alpha.md
+          body_path: docs/deploy/release-notes-v0.6.5-alpha.md
           prerelease: ${{ contains(env.RELEASE_VERSION, '-alpha') || contains(env.RELEASE_VERSION, '-beta') || contains(env.RELEASE_VERSION, '-rc') }}
           overwrite_files: true
           files: |
@@ -289,7 +289,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_VERSION }}
-          body_path: docs/deploy/release-notes-v0.6.4-alpha.md
+          body_path: docs/deploy/release-notes-v0.6.5-alpha.md
           prerelease: ${{ contains(env.RELEASE_VERSION, '-alpha') || contains(env.RELEASE_VERSION, '-beta') || contains(env.RELEASE_VERSION, '-rc') }}
           overwrite_files: true
           files: |
@@ -345,7 +345,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_VERSION }}
-          body_path: docs/deploy/release-notes-v0.6.4-alpha.md
+          body_path: docs/deploy/release-notes-v0.6.5-alpha.md
           prerelease: ${{ contains(env.RELEASE_VERSION, '-alpha') || contains(env.RELEASE_VERSION, '-beta') || contains(env.RELEASE_VERSION, '-rc') }}
           overwrite_files: true
           files: |
@@ -399,7 +399,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_VERSION }}
-          body_path: docs/deploy/release-notes-v0.6.4-alpha.md
+          body_path: docs/deploy/release-notes-v0.6.5-alpha.md
           prerelease: ${{ contains(env.RELEASE_VERSION, '-alpha') || contains(env.RELEASE_VERSION, '-beta') || contains(env.RELEASE_VERSION, '-rc') }}
           overwrite_files: true
           files: |
