@@ -134,12 +134,17 @@ func (t *Tunnel) bridgeConnections(serverConn, localConn net.Conn) {
 // Info returns the current proxy info for status display.
 func (t *Tunnel) Info() types.ProxyInfo {
 	return types.ProxyInfo{
-		ProxyName:  t.def.Name,
-		ProxyType:  types.ProxyType(t.def.ProxyType),
-		LocalAddr:  t.def.LocalAddr,
-		RemotePort: t.def.RemotePort,
-		Status:     t.status.Load().(types.ProxyStatus),
-		BytesIn:    t.bytesIn.Load(),
-		BytesOut:   t.bytesOut.Load(),
+		ProxyName:      t.def.Name,
+		ProxyType:      types.ProxyType(t.def.ProxyType),
+		LocalAddr:      t.def.LocalAddr,
+		RemotePort:     t.def.RemotePort,
+		Domain:         t.def.Domain,
+		HostHeader:     t.def.HostHeader,
+		PublicURL:      t.def.PublicURL,
+		AccessPolicyID: t.def.AccessPolicyID,
+		InspectEnabled: t.def.InspectEnabled,
+		Status:         t.status.Load().(types.ProxyStatus),
+		BytesIn:        t.bytesIn.Load(),
+		BytesOut:       t.bytesOut.Load(),
 	}
 }

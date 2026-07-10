@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	version = "0.6.5-alpha"
+	version = "0.7.0-beta"
 	signed  = "false"
 )
 

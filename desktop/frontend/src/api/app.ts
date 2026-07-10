@@ -7,6 +7,12 @@ export interface TunnelInfo {
   local_addr: string
   local_port: number
   remote_port: number
+  domain?: string
+  host_header?: string
+  public_url?: string
+  access_policy_id?: string
+  inspect_enabled?: boolean
+  expires_at?: string
   status: string
   connection_type: string
 }
@@ -17,10 +23,36 @@ export interface CreateTunnelInput {
   local_addr: string
   local_port: number
   remote_port: number
+  domain?: string
+  host_header?: string
+  public_url?: string
+  access_policy_id?: string
+  inspect_enabled?: boolean
+  expires_at?: string
 }
 
 export interface UpdateTunnelInput extends CreateTunnelInput {
   id: string
+}
+
+export interface PublishEndpointInput {
+  name?: string
+  http_port: number
+  local_addr?: string
+  subdomain?: string
+  domain?: string
+  auth_mode?: string
+  access_policy_id?: string
+  host_header?: string
+  inspect_enabled?: boolean
+  expires_at?: string
+}
+
+export interface PublishEndpointInfo {
+  tunnel: TunnelInfo
+  public_url: string
+  started: boolean
+  message: string
 }
 
 export interface ServerConfigInput {
@@ -431,6 +463,32 @@ const createPreviewBinding = (): Record<string, WailsMethod> => ({
       connection_type: 'standby',
     }
   },
+  PublishEndpoint: (input: unknown) => {
+    const publishInput = input as PublishEndpointInput
+    const domain = publishInput.domain || publishInput.subdomain || 'preview'
+    const publicUrl = `http://${domain}`
+    return {
+      tunnel: {
+        id: `preview-endpoint-${Date.now()}`,
+        name: publishInput.name || `http-${domain}`,
+        proxy_type: 'http',
+        local_addr: publishInput.local_addr || '127.0.0.1',
+        local_port: publishInput.http_port,
+        remote_port: 0,
+        domain,
+        host_header: publishInput.host_header || '',
+        public_url: publicUrl,
+        access_policy_id: publishInput.access_policy_id || '',
+        inspect_enabled: publishInput.inspect_enabled ?? true,
+        expires_at: publishInput.expires_at || '',
+        status: PREVIEW_TUNNEL_STATUS,
+        connection_type: 'standby',
+      },
+      public_url: publicUrl,
+      started: false,
+      message: 'Preview endpoint saved.',
+    }
+  },
   UpdateTunnel: (input: unknown) => {
     const tunnelInput = input as UpdateTunnelInput
     return {
@@ -616,6 +674,10 @@ export const CreateTunnel = (input: CreateTunnelInput): Promise<TunnelInfo> => {
 
 export const UpdateTunnel = (input: UpdateTunnelInput): Promise<TunnelInfo> => {
   return call<TunnelInfo>('UpdateTunnel', input)
+}
+
+export const PublishEndpoint = (input: PublishEndpointInput): Promise<PublishEndpointInfo> => {
+  return call<PublishEndpointInfo>('PublishEndpoint', input)
 }
 
 export const DeleteTunnel = (id: string): Promise<void> => {

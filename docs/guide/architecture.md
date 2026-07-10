@@ -1,6 +1,6 @@
 # 架构说明
 
-NexTunnel 由桌面客户端、统一 CLI、Relay、Control Plane、NAT Detector、Dashboard 和验证工具链组成。v0.6.5-alpha 的重点是把“能部署、能连接、能观察、能恢复”的生产闭环打通。
+NexTunnel 由桌面客户端、统一 CLI、Relay、Control Plane、NAT Detector、Dashboard 和验证工具链组成。v0.7.0-beta 的重点是把“能部署、能连接、能观察、能恢复”的生产闭环打通。
 
 ## 组件关系
 
@@ -9,6 +9,7 @@ flowchart LR
   desktop["Desktop<br/>Wails + Vue + Go"]
   cli["nextunnel CLI"]
   relay["Relay Server<br/>TCP/QUIC"]
+  gateway["Public HTTP Gateway"]
   admin["Relay Admin API"]
   cp["Control Plane"]
   nat["NAT Detector<br/>STUN"]
@@ -17,6 +18,7 @@ flowchart LR
   verify["Verification Scripts"]
 
   desktop -->|"控制连接、代理注册"| relay
+  gateway -->|"Host 路由到 HTTP 隧道"| relay
   desktop -->|"注册、路由、Peer、ACL"| cp
   desktop -->|"NAT/STUN 探测"| nat
   desktop -. "P2P 候选与直连" .-> desktop
@@ -55,6 +57,7 @@ Relay 提供客户端控制连接和代理工作连接：
 - TCP 控制端口默认 `7000`。
 - QUIC Relay 默认 `7443/udp`。
 - `auth-token` 用于客户端共享认证。
+- Public HTTP Gateway 可监听 `80/443` 或自定义端口，按 Host 路由到 HTTP 隧道。
 - Relay Admin API 默认 `127.0.0.1:7001`，用于 Dashboard 客户端监控。
 
 Relay Admin API：
@@ -64,8 +67,15 @@ Relay Admin API：
 | `GET` | `/api/v1/admin/health` | 管理接口健康检查 |
 | `GET` | `/api/v1/admin/clients` | 在线客户端与代理列表 |
 | `DELETE` | `/api/v1/admin/clients/{client_id}` | 断开客户端 |
+| `GET` | `/api/v1/admin/endpoints` | Public Endpoint 列表 |
+| `GET` | `/api/v1/admin/endpoint-policies` | Endpoint Policy 列表 |
+| `POST` | `/api/v1/admin/endpoint-policies` | 新增或更新 Endpoint Policy |
+| `DELETE` | `/api/v1/admin/endpoint-policies/{id}` | 删除 Endpoint Policy |
+| `GET` | `/api/v1/admin/http-requests` | HTTP 请求日志 |
 
 Relay Admin API 必须使用 Bearer Token，并且不应暴露到公网。
+
+Public Gateway 与普通远端端口隧道共用控制/工作连接机制：HTTP Endpoint 可不占用单独远端端口，Gateway 收到请求后向客户端申请 work connection，再把请求转发到本机 HTTP 服务。`domain-suffix` 用于把 `demo` 这类子域名补全为 `demo.example.com`，`tls-mode=file` 用于 Relay 直接终止 HTTPS；`tls-mode=acme` 目前保留。
 
 ## Control Plane
 
@@ -107,7 +117,7 @@ Dashboard 是 Web 管理台：
 - 登录与 token 鉴权。
 - RBAC：`admin`、`operator`、`viewer`。
 - 节点、客户端、流量、ACL、告警、审计、用户和配置状态。
-- 通过 Relay Admin API 获取在线客户端并执行断开。
+- 通过 Relay Admin API 获取在线客户端、Public Endpoint、Endpoint Policy、请求日志并执行断开。
 - SQLite 保存 Dashboard 数据；JSONL 可作为审计后端。
 
 常用接口：
@@ -117,6 +127,11 @@ Dashboard 是 Web 管理台：
 | `POST` | `/api/v1/auth/login` | 登录 |
 | `GET` | `/api/v1/clients` | 客户端监控 |
 | `DELETE` | `/api/v1/clients/{id}` | 断开客户端 |
+| `GET` | `/api/v1/endpoints` | Public Endpoint |
+| `GET` | `/api/v1/endpoint-policies` | Endpoint Policy |
+| `POST` | `/api/v1/endpoint-policies` | 新增或更新 Endpoint Policy |
+| `DELETE` | `/api/v1/endpoint-policies/{id}` | 删除 Endpoint Policy |
+| `GET` | `/api/v1/http-requests` | HTTP 请求日志 |
 | `GET` | `/api/v1/audit` | 审计查询 |
 | `GET` | `/api/v1/config/status` | 配置状态 |
 | `GET` | `/api/v1/health` | 健康检查 |
@@ -141,6 +156,7 @@ NAT Detector 提供 STUN 探测，桌面端用它判断公网映射和 P2P 可�
 - Control Plane 和 Relay 支持 mTLS 参数。
 - Dashboard 支持 CORS 白名单和 HTTPS 证书参数，生产建议使用反向代理提供 HTTPS。
 - Relay Admin API 只供 Dashboard 内部访问。
+- Endpoint Policy 的 Basic 密码和 Bearer Token 只写入 Relay，不在列表响应中回显。
 
 ## 验证工具链
 
@@ -150,6 +166,7 @@ NAT Detector 提供 STUN 探测，桌面端用它判断公网映射和 P2P 可�
 | --- | --- |
 | `verify-scripts-static.ps1` | PowerShell 解析、关键参数契约和 Bash 语法静态校验 |
 | `verify-dashboard.ps1` | Dashboard HTTPS/CORS/鉴权/API |
+| `verify-public-endpoint.ps1` | Public Endpoint Gateway、访问策略和请求日志 |
 | `verify-dashboard-ssh.ps1` | 无公网 HTTPS 时通过 SSH 隧道验证 Dashboard |
 | `verify-tun.ps1` | 本机真实 TUN 创建和路由 |
 | `verify-p2p-tun.ps1` | Windows/macOS 双端 P2P/TUN |

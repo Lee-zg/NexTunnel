@@ -12,6 +12,7 @@ import (
 
 	"github.com/nextunnel/pkg/protocol"
 	"github.com/nextunnel/pkg/tlsutil"
+	"github.com/nextunnel/pkg/types"
 )
 
 // Server is the main relay server that manages client connections and proxy listeners.
@@ -23,12 +24,20 @@ type Server struct {
 	quicTransport   *QUICTransport
 	adminListener   net.Listener
 	adminServer     *http.Server
+	publicGateway   *publicGateway
 
 	clientsMu sync.RWMutex
 	clients   map[string]*ClientConn
 
 	proxiesMu sync.RWMutex
 	proxies   map[string]*Proxy
+
+	endpointRoutesMu sync.RWMutex
+	endpointRoutes   map[string]*Proxy
+	policyMu         sync.RWMutex
+	policies         map[string]*endpointPolicyState
+	requestLogMu     sync.RWMutex
+	requestLogs      []types.HTTPRequestLog
 
 	meshMu    sync.RWMutex
 	meshPeers map[string]*protocol.MeshPeerJSON // clientID -> mesh info
@@ -41,13 +50,16 @@ type Server struct {
 func NewServer(cfg *Config, logger *slog.Logger) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
-		config:    cfg,
-		logger:    logger,
-		clients:   make(map[string]*ClientConn),
-		proxies:   make(map[string]*Proxy),
-		meshPeers: make(map[string]*protocol.MeshPeerJSON),
-		ctx:       ctx,
-		cancel:    cancel,
+		config:         cfg,
+		logger:         logger,
+		clients:        make(map[string]*ClientConn),
+		proxies:        make(map[string]*Proxy),
+		endpointRoutes: make(map[string]*Proxy),
+		policies:       make(map[string]*endpointPolicyState),
+		requestLogs:    make([]types.HTTPRequestLog, 0),
+		meshPeers:      make(map[string]*protocol.MeshPeerJSON),
+		ctx:            ctx,
+		cancel:         cancel,
 	}
 }
 
@@ -78,12 +90,23 @@ func (s *Server) Run() error {
 		ln.Close()
 		return err
 	}
+	s.publicGateway = newPublicGateway(s)
+	if err := s.publicGateway.start(); err != nil {
+		ln.Close()
+		if s.adminServer != nil {
+			_ = s.adminServer.Shutdown(context.Background())
+		}
+		return err
+	}
 	if s.config.QUICPort > 0 {
 		s.quicTransport = NewQUICTransport(s.config, s, s.logger)
 		if err := s.quicTransport.Start(s.ctx); err != nil {
 			ln.Close()
 			if s.adminServer != nil {
 				_ = s.adminServer.Shutdown(context.Background())
+			}
+			if s.publicGateway != nil {
+				s.publicGateway.stop(context.Background())
 			}
 			return err
 		}
@@ -103,6 +126,14 @@ func (s *Server) Addr() net.Addr {
 func (s *Server) AdminAddr() net.Addr {
 	if s.adminListener != nil {
 		return s.adminListener.Addr()
+	}
+	return nil
+}
+
+// PublicHTTPAddr returns the Public Endpoint HTTP gateway address when enabled.
+func (s *Server) PublicHTTPAddr() net.Addr {
+	if s.publicGateway != nil {
+		return s.publicGateway.httpAddr
 	}
 	return nil
 }
@@ -358,6 +389,9 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 	if s.adminServer != nil {
 		_ = s.adminServer.Shutdown(ctx)
+	}
+	if s.publicGateway != nil {
+		s.publicGateway.stop(ctx)
 	}
 
 	// Close all client connections

@@ -1,6 +1,6 @@
-.PHONY: all dev dev-server-web build package-cli package-server package-desktop package-macos lint test verify-scripts-static verify-edge verify-ebpf-linux verify-tun verify-p2p-tun verify-dashboard verify-dashboard-ssh clean help
+.PHONY: all dev dev-server-web build package-cli package-server package-desktop package-macos lint test verify-scripts-static verify-edge verify-ebpf-linux verify-tun verify-p2p-tun verify-dashboard verify-dashboard-ssh verify-public-endpoint clean help
 
-VERSION ?= v0.6.5-alpha
+VERSION ?= v0.7.0-beta
 WAILS_BUILD_TAGS ?= desktop,wv2runtime.download,production
 APP_BUNDLE_EXECUTABLE ?= NexTunnel
 WINTUN_SHA256 ?= 07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51
@@ -108,6 +108,10 @@ verify-dashboard:
 ## verify-dashboard-ssh: Run Dashboard verification through SSH tunnel; pass DASHBOARD_HOST, optional DASHBOARD_USER, DASHBOARD_IDENTITY, DASHBOARD_REMOTE_PORT
 verify-dashboard-ssh:
 	pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/verify-dashboard-ssh.ps1 -SshHost "$(DASHBOARD_HOST)" -User "$(DASHBOARD_USER)" -IdentityFile "$(DASHBOARD_IDENTITY)" -RemoteDashboardPort "$(DASHBOARD_REMOTE_PORT)" -AllowedOrigin "$(DASHBOARD_ORIGIN)" -ReportPath "dist/verification/dashboard-ssh-latest.json"
+
+## verify-public-endpoint: Run Public Endpoint verification; pass GATEWAY_URL, optional HOST_HEADER, EXPECTED_CONTAINS, BASIC_USERNAME, BASIC_PASSWORD, BEARER_TOKEN, DASHBOARD_URL, DASHBOARD_TOKEN
+verify-public-endpoint:
+	pwsh -NoProfile -ExecutionPolicy Bypass -Command "$$argsList = @('-NoProfile','-ExecutionPolicy','Bypass','-File','scripts/verify-public-endpoint.ps1','-GatewayUrl','$(GATEWAY_URL)','-HostHeader','$(HOST_HEADER)','-ExpectedContains','$(EXPECTED_CONTAINS)','-BasicUsername','$(BASIC_USERNAME)','-BasicPassword','$(BASIC_PASSWORD)','-BearerToken','$(BEARER_TOKEN)','-DashboardUrl','$(DASHBOARD_URL)','-DashboardToken','$(DASHBOARD_TOKEN)','-ReportPath','dist/verification/public-endpoint-latest.json'); if ('$(ALLOW_INSECURE_HTTP_CREDENTIALS)' -eq 'true') { $$argsList += '-AllowInsecureHttpCredentials' }; & pwsh @argsList"
 
 ## verify-tun: Run local real TUN and route apply/reset verification
 verify-tun:

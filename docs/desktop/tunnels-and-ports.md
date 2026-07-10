@@ -28,7 +28,7 @@ curl http://example.com:13000
 
 ## 创建 HTTP 隧道
 
-HTTP 隧道适合 Web 开发服务。字段与 TCP 隧道相同，只需把类型选择为 `http`。
+HTTP 隧道适合 Web 开发服务。没有配置公开域名时，它和 TCP 一样使用 Relay 远端端口。
 
 ```text
 名称：local-web
@@ -37,6 +37,21 @@ HTTP 隧道适合 Web 开发服务。字段与 TCP 隧道相同，只需把类�
 本地端口：5173
 远端端口：15173
 ```
+
+如果 Relay 启用了 Public HTTP Gateway，可以把远端端口设为 `0`，并填写公开域名或子域名：
+
+```text
+名称：local-web
+类型：http
+本地地址：127.0.0.1
+本地端口：5173
+远端端口：0
+公开域名：demo
+访问策略 ID：basic-dev
+请求观测：开启
+```
+
+Relay 会根据 `domain-suffix` 把 `demo` 补全为 `demo.<suffix>`，注册成功后隧道列表会显示 `public_url`，可直接复制。访问策略 ID 必须先通过 Dashboard 或 Relay Admin API 创建。
 
 ## 启动、停止和编辑
 

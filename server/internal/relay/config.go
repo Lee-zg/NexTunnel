@@ -22,6 +22,14 @@ type Config struct {
 	WorkConnTimeout     time.Duration
 	TLSEnabled          bool
 	TLS                 tlsutil.TLSConfig
+	PublicHTTPListen    string
+	PublicHTTPSListen   string
+	DomainSuffix        string
+	PublicTLSMode       string // off, file, acme
+	PublicTLSCert       string
+	PublicTLSKey        string
+	ACMEEmail           string
+	RequestLogRetention int
 }
 
 // DefaultConfig returns a Config with sensible defaults.
@@ -33,6 +41,8 @@ func DefaultConfig() *Config {
 		HeartbeatTimeout:    90 * time.Second,
 		MaxProxiesPerClient: 100,
 		WorkConnTimeout:     30 * time.Second,
+		PublicTLSMode:       "off",
+		RequestLogRetention: 1000,
 	}
 }
 
@@ -52,6 +62,14 @@ func ParseFlags(fs *flag.FlagSet) *Config {
 	fs.StringVar(&cfg.TLS.CACert, "tls-ca", "", "CA certificate PEM for mTLS (enables TLS when set)")
 	fs.StringVar(&cfg.TLS.Cert, "tls-cert", "", "server certificate PEM for mTLS")
 	fs.StringVar(&cfg.TLS.Key, "tls-key", "", "server private key PEM for mTLS")
+	fs.StringVar(&cfg.PublicHTTPListen, "public-http-listen", "", "optional Public Endpoint HTTP gateway listen address, for example 0.0.0.0:80")
+	fs.StringVar(&cfg.PublicHTTPSListen, "public-https-listen", "", "optional Public Endpoint HTTPS gateway listen address, for example 0.0.0.0:443")
+	fs.StringVar(&cfg.DomainSuffix, "domain-suffix", "", "domain suffix used when clients publish by subdomain")
+	fs.StringVar(&cfg.PublicTLSMode, "tls-mode", cfg.PublicTLSMode, "Public Endpoint TLS mode: off, file, or acme")
+	fs.StringVar(&cfg.PublicTLSCert, "public-tls-cert", "", "certificate file for Public Endpoint HTTPS when tls-mode=file")
+	fs.StringVar(&cfg.PublicTLSKey, "public-tls-key", "", "private key file for Public Endpoint HTTPS when tls-mode=file")
+	fs.StringVar(&cfg.ACMEEmail, "acme-email", "", "ACME account email reserved for tls-mode=acme")
+	fs.IntVar(&cfg.RequestLogRetention, "request-log-retention", cfg.RequestLogRetention, "number of Public Endpoint HTTP request logs kept in memory")
 	return cfg
 }
 
@@ -70,6 +88,24 @@ func (c *Config) Validate() error {
 	}
 	if c.ControlPort <= 0 || c.ControlPort > 65535 {
 		return fmt.Errorf("invalid control port: %d", c.ControlPort)
+	}
+	switch c.PublicTLSMode {
+	case "", "off":
+		c.PublicTLSMode = "off"
+		if c.PublicHTTPSListen != "" {
+			return fmt.Errorf("public endpoint https listen requires tls-mode=file; use public-http-listen or an external TLS reverse proxy when tls-mode=off")
+		}
+	case "file":
+		if c.PublicHTTPSListen != "" && (c.PublicTLSCert == "" || c.PublicTLSKey == "") {
+			return fmt.Errorf("public endpoint tls-mode=file requires public-tls-cert and public-tls-key")
+		}
+	case "acme":
+		return fmt.Errorf("public endpoint tls-mode=acme is reserved but not implemented; use tls-mode=file or external reverse proxy")
+	default:
+		return fmt.Errorf("unsupported public endpoint tls-mode: %s", c.PublicTLSMode)
+	}
+	if c.RequestLogRetention < 0 {
+		return fmt.Errorf("request-log-retention must be >= 0")
 	}
 	// Auto-enable TLS when all cert paths are provided
 	if c.TLS.Enabled() {

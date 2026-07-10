@@ -19,6 +19,12 @@ CREATE TABLE IF NOT EXISTS tunnel_configs (
     local_port  INTEGER NOT NULL,
     remote_port INTEGER NOT NULL,
     server_addr TEXT NOT NULL DEFAULT '',
+    domain      TEXT NOT NULL DEFAULT '',
+    host_header TEXT NOT NULL DEFAULT '',
+    public_url  TEXT NOT NULL DEFAULT '',
+    access_policy_id TEXT NOT NULL DEFAULT '',
+    inspect_enabled INTEGER NOT NULL DEFAULT 0,
+    expires_at TEXT NOT NULL DEFAULT '',
     status      TEXT NOT NULL DEFAULT 'stopped',
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -122,7 +128,52 @@ func (d *DB) migrate() error {
 	if _, err := d.db.Exec(schema); err != nil {
 		return fmt.Errorf("run schema migration: %w", err)
 	}
+	// 旧版 alpha 配置库没有 Public Endpoint 相关列，按列级迁移可避免用户丢失本地隧道配置。
+	for _, migration := range []struct {
+		column string
+		sql    string
+	}{
+		{column: "domain", sql: "ALTER TABLE tunnel_configs ADD COLUMN domain TEXT NOT NULL DEFAULT ''"},
+		{column: "host_header", sql: "ALTER TABLE tunnel_configs ADD COLUMN host_header TEXT NOT NULL DEFAULT ''"},
+		{column: "public_url", sql: "ALTER TABLE tunnel_configs ADD COLUMN public_url TEXT NOT NULL DEFAULT ''"},
+		{column: "access_policy_id", sql: "ALTER TABLE tunnel_configs ADD COLUMN access_policy_id TEXT NOT NULL DEFAULT ''"},
+		{column: "inspect_enabled", sql: "ALTER TABLE tunnel_configs ADD COLUMN inspect_enabled INTEGER NOT NULL DEFAULT 0"},
+		{column: "expires_at", sql: "ALTER TABLE tunnel_configs ADD COLUMN expires_at TEXT NOT NULL DEFAULT ''"},
+	} {
+		exists, err := d.columnExists("tunnel_configs", migration.column)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			if _, err := d.db.Exec(migration.sql); err != nil {
+				return fmt.Errorf("add tunnel_configs.%s: %w", migration.column, err)
+			}
+		}
+	}
 	return nil
+}
+
+func (d *DB) columnExists(table, column string) (bool, error) {
+	rows, err := d.db.Query("PRAGMA table_info(" + table + ")")
+	if err != nil {
+		return false, fmt.Errorf("inspect table %s: %w", table, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name string
+		var dataType string
+		var notNull int
+		var defaultValue any
+		var pk int
+		if err := rows.Scan(&cid, &name, &dataType, &notNull, &defaultValue, &pk); err != nil {
+			return false, fmt.Errorf("scan table info %s: %w", table, err)
+		}
+		if name == column {
+			return true, nil
+		}
+	}
+	return false, rows.Err()
 }
 
 // Close closes the database connection.

@@ -3,7 +3,7 @@
   "name": "NexTunnel",
   "outputfilename": "NexTunnel",
   "productName": "NexTunnel",
-  "productVersion": "0.6.5-alpha",
+  "productVersion": "0.7.0-beta",
   "frontend:install": "npm install",
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
@@ -15,8 +15,8 @@
   "info": {
     "companyName": "NexTunnel Contributors",
     "productName": "NexTunnel",
-    "productVersion": "0.6.5-alpha",
+    "productVersion": "0.7.0-beta",
     "copyright": "Copyright 2026 NexTunnel Contributors",
-    "comments": "NexTunnel desktop v0.6.5-alpha release"
+    "comments": "NexTunnel desktop v0.7.0-beta release"
   }
 }

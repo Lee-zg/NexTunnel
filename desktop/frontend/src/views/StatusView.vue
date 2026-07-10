@@ -219,11 +219,18 @@
                 <div>
                   <strong>{{ tunnel.name }}</strong>
                   <span>{{ t('tunnel.localEndpoint') }} {{ tunnel.local_addr }}:{{ tunnel.local_port }}</span>
+                  <span
+                    v-if="tunnel.public_url"
+                    class="public-url"
+                  >
+                    {{ tunnel.public_url }}
+                  </span>
                 </div>
               </div>
 
               <div class="tunnel-meta">
-                <span>{{ t('tunnel.remoteEndpoint') }} :{{ tunnel.remote_port }}</span>
+                <span v-if="tunnel.public_url">{{ t('tunnel.publicEndpoint') }} {{ tunnel.public_url }}</span>
+                <span v-else>{{ t('tunnel.remoteEndpoint') }} :{{ tunnel.remote_port }}</span>
                 <n-tag
                   round
                   size="small"
@@ -243,6 +250,14 @@
               </div>
 
               <n-space>
+                <n-button
+                  v-if="tunnel.public_url"
+                  size="small"
+                  secondary
+                  @click="handleCopyPublicURL(tunnel.public_url)"
+                >
+                  {{ t('tunnel.copyUrl') }}
+                </n-button>
                 <n-button
                   v-if="!isTunnelRunning(tunnel.status)"
                   size="small"
@@ -350,6 +365,50 @@
               :max="65535"
             />
           </n-form-item-gi>
+          <n-form-item-gi
+            v-if="form.proxy_type === 'http'"
+            :label="t('tunnel.domain')"
+          >
+            <n-input
+              v-model:value="form.domain"
+              :placeholder="t('tunnel.domainPlaceholder')"
+            />
+          </n-form-item-gi>
+          <n-form-item-gi
+            v-if="form.proxy_type === 'http'"
+            :label="t('tunnel.hostHeader')"
+          >
+            <n-input
+              v-model:value="form.host_header"
+              :placeholder="t('tunnel.hostHeaderPlaceholder')"
+            />
+          </n-form-item-gi>
+          <n-form-item-gi
+            v-if="form.proxy_type === 'http'"
+            :label="t('tunnel.accessPolicy')"
+          >
+            <n-input
+              v-model:value="form.access_policy_id"
+              :placeholder="t('tunnel.accessPolicyPlaceholder')"
+            />
+          </n-form-item-gi>
+          <n-form-item-gi
+            v-if="form.proxy_type === 'http'"
+            :label="t('tunnel.expiresAt')"
+          >
+            <n-input
+              v-model:value="form.expires_at"
+              :placeholder="t('tunnel.expiresAtPlaceholder')"
+            />
+          </n-form-item-gi>
+          <n-form-item-gi
+            v-if="form.proxy_type === 'http'"
+            :label="t('tunnel.inspect')"
+          >
+            <n-checkbox v-model:checked="form.inspect_enabled">
+              {{ t('tunnel.inspectEnabled') }}
+            </n-checkbox>
+          </n-form-item-gi>
         </n-grid>
       </n-form>
 
@@ -379,6 +438,7 @@ import {
   NAlert,
   NButton,
   NCard,
+  NCheckbox,
   NEmpty,
   NForm,
   NFormItemGi,
@@ -421,6 +481,11 @@ type TunnelForm = {
   local_addr: string
   local_port: number
   remote_port: number
+  domain: string
+  host_header: string
+  access_policy_id: string
+  inspect_enabled: boolean
+  expires_at: string
 }
 type GroupedSelectOption = SelectOption & {
   type: 'group'
@@ -436,6 +501,11 @@ const DEFAULT_TUNNEL_FORM: TunnelForm = {
   local_addr: '127.0.0.1',
   local_port: 8080,
   remote_port: 80,
+  domain: '',
+  host_header: '',
+  access_policy_id: '',
+  inspect_enabled: true,
+  expires_at: '',
 }
 const store = useTunnelStore()
 const message = useMessage()
@@ -521,8 +591,17 @@ const filteredTunnels = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase()
   if (!keyword) return store.tunnels
   return store.tunnels.filter((tunnel) => {
-    return [tunnel.name, tunnel.proxy_type, tunnel.local_addr, String(tunnel.local_port), String(tunnel.remote_port), tunnel.status]
-      .some((value) => value.toLowerCase().includes(keyword))
+    return [
+      tunnel.name,
+      tunnel.proxy_type,
+      tunnel.local_addr,
+      String(tunnel.local_port),
+      String(tunnel.remote_port),
+      tunnel.domain || '',
+      tunnel.public_url || '',
+      tunnel.access_policy_id || '',
+      tunnel.status,
+    ].some((value) => value.toLowerCase().includes(keyword))
   })
 })
 const runningTunnels = computed(() => store.tunnels.filter((tunnel) => isTunnelRunning(tunnel.status)))
@@ -663,6 +742,11 @@ const fillTunnelFormFromPort = (port: PortLike): void => {
     local_addr: '127.0.0.1',
     local_port: port.port,
     remote_port: port.port,
+    domain: '',
+    host_header: '',
+    access_policy_id: '',
+    inspect_enabled: true,
+    expires_at: '',
   }
 }
 
@@ -686,8 +770,23 @@ const handleEdit = (tunnel: TunnelInfo): void => {
     local_addr: tunnel.local_addr,
     local_port: tunnel.local_port,
     remote_port: tunnel.remote_port,
+    domain: tunnel.domain || '',
+    host_header: tunnel.host_header || '',
+    access_policy_id: tunnel.access_policy_id || '',
+    inspect_enabled: tunnel.inspect_enabled ?? true,
+    expires_at: tunnel.expires_at || '',
   }
   showTunnelModal.value = true
+}
+
+const handleCopyPublicURL = async (publicURL: string): Promise<void> => {
+  if (!publicURL) return
+  try {
+    await navigator.clipboard.writeText(publicURL)
+    message.success(t('tunnel.copySuccess'))
+  } catch {
+    message.error(t('tunnel.copyFailed'))
+  }
 }
 
 const handlePortSelect = (value: string | number | null): void => {
@@ -1480,6 +1579,15 @@ onUnmounted(() => {
 .tunnel-meta span {
   color: var(--text-dim);
   font-size: 12px;
+}
+
+.tunnel-main .public-url {
+  max-width: min(520px, 56vw);
+  overflow: hidden;
+  color: var(--accent-cyan);
+  font-family: Consolas, 'SFMono-Regular', monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tunnel-meta {

@@ -8,6 +8,7 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/nextunnel/pkg/types"
@@ -63,6 +64,43 @@ func (p *Proxy) Start(bindAddr string) error {
 // RemotePort returns the actual listening port.
 func (p *Proxy) RemotePort() uint16 {
 	return p.info.RemotePort
+}
+
+// OpenWorkConn asks the owning client to open a work connection and returns it
+// to callers that need to speak protocol-aware traffic, such as the HTTP gateway.
+func (p *Proxy) OpenWorkConn(ctx context.Context) (net.Conn, string, error) {
+	sessionID := uuid.New().String()
+	ch := make(chan io.ReadWriteCloser, 1)
+	p.pendingMu.Lock()
+	p.pendingSessions[sessionID] = ch
+	p.pendingMu.Unlock()
+
+	if err := p.clientConn.sendStartWorkConn(p.info.ProxyName, sessionID); err != nil {
+		p.removePending(sessionID)
+		return nil, sessionID, err
+	}
+
+	if ctx == nil {
+		ctx = p.ctx
+	}
+	select {
+	case workConn, ok := <-ch:
+		if !ok {
+			return nil, sessionID, fmt.Errorf("work connection wait cancelled")
+		}
+		netConn, ok := workConn.(net.Conn)
+		if !ok {
+			workConn.Close()
+			return nil, sessionID, fmt.Errorf("work connection does not implement net.Conn")
+		}
+		return netConn, sessionID, nil
+	case <-ctx.Done():
+		p.removePending(sessionID)
+		return nil, sessionID, ctx.Err()
+	case <-time.After(p.clientConn.server.config.WorkConnTimeout):
+		p.removePending(sessionID)
+		return nil, sessionID, fmt.Errorf("timeout waiting for work connection")
+	}
 }
 
 func (p *Proxy) acceptLoop() {

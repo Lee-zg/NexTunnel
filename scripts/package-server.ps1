@@ -1,5 +1,5 @@
 param(
-  [string]$Version = "v0.6.5-alpha",
+  [string]$Version = "v0.7.0-beta",
   [switch]$SkipWeb
 )
 
@@ -100,6 +100,7 @@ function New-ServerArchive {
   New-Item -ItemType Directory -Path $packageScriptsDir -Force | Out-Null
   Copy-Item -LiteralPath (Join-Path $repositoryRoot "scripts\verify-dashboard.ps1") -Destination (Join-Path $packageScriptsDir "verify-dashboard.ps1") -Force
   Copy-Item -LiteralPath (Join-Path $repositoryRoot "scripts\verify-dashboard-ssh.ps1") -Destination (Join-Path $packageScriptsDir "verify-dashboard-ssh.ps1") -Force
+  Copy-Item -LiteralPath (Join-Path $repositoryRoot "scripts\verify-public-endpoint.ps1") -Destination (Join-Path $packageScriptsDir "verify-public-endpoint.ps1") -Force
   Copy-Item -LiteralPath (Join-Path $repositoryRoot "scripts\verify-edge-rehearsal.ps1") -Destination (Join-Path $packageScriptsDir "verify-edge-rehearsal.ps1") -Force
   Copy-Item -LiteralPath (Join-Path $repositoryRoot "scripts\verify-ebpf-linux.sh") -Destination (Join-Path $packageScriptsDir "verify-ebpf-linux.sh") -Force
   Copy-Item -LiteralPath (Join-Path $repositoryRoot "scripts\verify-scripts-static.ps1") -Destination (Join-Path $packageScriptsDir "verify-scripts-static.ps1") -Force
@@ -124,6 +125,7 @@ function New-ServerArchive {
     "Verification:",
     "  scripts/verify-dashboard.ps1",
     "  scripts/verify-dashboard-ssh.ps1",
+    "  scripts/verify-public-endpoint.ps1",
     "  scripts/verify-edge-rehearsal.ps1",
     "  scripts/verify-ebpf-linux.sh",
     "  scripts/verify-scripts-static.ps1",

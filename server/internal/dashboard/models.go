@@ -50,6 +50,14 @@ type ClientListResponse struct {
 	Clients    []ClientSnapshot `json:"clients"`
 }
 
+// RelayBackedListResponse describes Relay Admin backed dashboard resources.
+type RelayBackedListResponse[T any] struct {
+	Configured bool   `json:"configured"`
+	Available  bool   `json:"available"`
+	Error      string `json:"error,omitempty"`
+	Items      []T    `json:"items"`
+}
+
 // RuntimeConfigStatus 汇总 Dashboard 生产运行配置，只暴露状态，不返回敏感令牌。
 type RuntimeConfigStatus struct {
 	HTTPSEnabled         bool     `json:"https_enabled"`

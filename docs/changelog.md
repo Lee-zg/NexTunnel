@@ -1,7 +1,17 @@
 # 更新日志
 
+## v0.7.0-beta
+
+- Public Endpoint 主路径进入 Beta：Relay 新增按 Host 路由的 Public HTTP Gateway，支持 `domain_suffix`、子域名冲突校验、`host_header` 和 `public_url` 返回，旧 TCP 隧道继续保持远端端口模型。
+- 新增 Endpoint 级访问策略：Basic Auth、Bearer Token、IP allow/deny、时间窗、限流、并发上限和过期时间，并把拒绝、限流和策略命中结果写入审计/请求日志。
+- 新增 HTTP 请求观测链路：记录方法、Host、Path、状态码、延迟、上下行字节、客户端 IP、策略结果和隧道名；默认不保存 body，避免扩大敏感数据面。
+- Dashboard 新增 Endpoint、策略和请求日志运营视图；桌面端新增 publish 控制入口，CLI 新增 `nextunnel desktop publish` 快捷命令，形成创建、查看、复制公开 URL 的基本闭环。
+- 新增 `scripts/verify-public-endpoint.ps1` 和 Relay 本地 Public Endpoint E2E 测试，发布验证继续以 `dist/verification/*.json` 归档报告作为生产声明依据。
+- 版本入口统一升级到 `v0.7.0-beta` / `0.7.0-beta`，同步桌面端、Dashboard、CLI、服务端打包脚本、前端包元数据、部署示例、发布流程和文档站口径。
+
 ## v0.6.5-alpha
 
+- 下一阶段 Public Endpoint 主干已接入：Relay HTTP Gateway、Endpoint Policy、请求日志、Dashboard API 与最小运营页、桌面端 publish 控制 API、CLI `nextunnel desktop publish` 和 `scripts/verify-public-endpoint.ps1`；真实生产通过仍以 `dist/verification/public-endpoint-latest.json` 为准。
 - 版本入口统一升级到 `v0.6.5-alpha` / `0.6.5-alpha`，同步桌面端、Dashboard、CLI、服务端打包脚本、前端包元数据、部署示例、发布流程和文档站口径。
 - 修复 Windows 自定义安装器在中文系统上展示安装失败原因时出现乱码的问题，统一解码 GB18030、UTF-16LE 和 UTF-8 命令输出。
 - 修复 Windows 升级安装时 `taskkill.exe` 返回“未找到/没有找到进程”却被误判为安装失败的问题，无旧进程运行时继续安装。

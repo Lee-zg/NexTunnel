@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"strings"
 
 	"github.com/nextunnel/cli/internal/desktop"
 	"github.com/spf13/cobra"
@@ -21,6 +22,7 @@ func newDesktopCommand(outputFormat *string) *cobra.Command {
 		newDesktopStatusCommand(outputFormat, &controlFile),
 		newDesktopConnectCommand(outputFormat, &controlFile),
 		newDesktopDisconnectCommand(outputFormat, &controlFile),
+		newDesktopPublishCommand(outputFormat, &controlFile),
 		newDesktopNATCommand(outputFormat, &controlFile),
 		newDesktopNetworkCommand(outputFormat, &controlFile),
 		newDesktopSettingsCommand(outputFormat, &controlFile),
@@ -111,6 +113,83 @@ func newDesktopDisconnectCommand(outputFormat *string, controlFile *string) *cob
 			}
 			return writeData(commandOutput(cmd), *outputFormat, status)
 		},
+	}
+}
+
+func newDesktopPublishCommand(outputFormat *string, controlFile *string) *cobra.Command {
+	var httpPort int
+	var name string
+	var localAddr string
+	var subdomain string
+	var domain string
+	var authMode string
+	var accessPolicyID string
+	var hostHeader string
+	var inspect bool
+	var expiresAt string
+	command := &cobra.Command{
+		Use:   "publish",
+		Short: "快速发布本机 HTTP 服务为 Public Endpoint",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if httpPort <= 0 || httpPort > 65535 {
+				return fmt.Errorf("--http 必须是 1-65535 的本机端口")
+			}
+			if domain == "" && subdomain == "" {
+				return fmt.Errorf("--domain 或 --subdomain 必填")
+			}
+			normalizedAuthMode, err := normalizeDesktopPublishAuthMode(authMode)
+			if err != nil {
+				return err
+			}
+			if accessPolicyID == "" && normalizedAuthMode != "" && normalizedAuthMode != "none" {
+				accessPolicyID = normalizedAuthMode
+			}
+			client, err := desktop.NewClient(*controlFile)
+			if err != nil {
+				return err
+			}
+			payload := map[string]any{
+				"name":             name,
+				"http_port":        httpPort,
+				"local_addr":       localAddr,
+				"subdomain":        subdomain,
+				"domain":           domain,
+				"auth_mode":        normalizedAuthMode,
+				"host_header":      hostHeader,
+				"access_policy_id": accessPolicyID,
+				"inspect_enabled":  inspect,
+				"expires_at":       expiresAt,
+			}
+			var result map[string]any
+			if err := client.Post("/api/v1/publish", payload, &result); err != nil {
+				return err
+			}
+			return writeData(commandOutput(cmd), *outputFormat, result)
+		},
+	}
+	command.Flags().IntVar(&httpPort, "http", 0, "要发布的本机 HTTP 端口，例如 3000")
+	command.Flags().StringVar(&name, "name", "", "隧道名称，默认根据域名生成")
+	command.Flags().StringVar(&localAddr, "local-addr", "127.0.0.1", "本机服务监听地址")
+	command.Flags().StringVar(&subdomain, "subdomain", "", "Public Gateway 子域名前缀，例如 demo")
+	command.Flags().StringVar(&domain, "domain", "", "完整公开域名，优先级高于 --subdomain")
+	command.Flags().StringVar(&authMode, "auth", "none", "访问认证模式：none、basic/basic_auth、bearer/bearer_token；会映射为默认策略 ID")
+	command.Flags().StringVar(&accessPolicyID, "access-policy-id", "", "Relay 已配置的 Endpoint Policy ID")
+	command.Flags().StringVar(&hostHeader, "host-header", "", "转发到本机服务时覆盖 Host Header")
+	command.Flags().BoolVar(&inspect, "inspect", true, "开启请求级观测日志")
+	command.Flags().StringVar(&expiresAt, "expires-at", "", "Endpoint 过期时间，RFC3339 格式")
+	return command
+}
+
+func normalizeDesktopPublishAuthMode(value string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "none":
+		return "none", nil
+	case "basic", "basic_auth":
+		return "basic_auth", nil
+	case "bearer", "bearer_token":
+		return "bearer_token", nil
+	default:
+		return "", fmt.Errorf("unsupported auth mode: %s", value)
 	}
 }
 

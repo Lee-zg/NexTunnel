@@ -4,6 +4,7 @@ import DashboardLayout from '../components/layout/DashboardLayout.vue'
 import OverviewView from '../views/OverviewView.vue'
 import NodesView from '../views/NodesView.vue'
 import ClientsView from '../views/ClientsView.vue'
+import EndpointsView from '../views/EndpointsView.vue'
 import TrafficView from '../views/TrafficView.vue'
 import ACLView from '../views/ACLView.vue'
 import AlertsView from '../views/AlertsView.vue'
@@ -25,6 +26,7 @@ const routes: RouteRecordRaw[] = [
       { path: '', name: 'overview', component: OverviewView },
       { path: 'nodes', name: 'nodes', component: NodesView },
       { path: 'clients', name: 'clients', component: ClientsView },
+      { path: 'endpoints', name: 'endpoints', component: EndpointsView },
       { path: 'traffic', name: 'traffic', component: TrafficView },
       { path: 'acl', name: 'acl', component: ACLView },
       { path: 'alerts', name: 'alerts', component: AlertsView },

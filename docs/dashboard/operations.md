@@ -76,6 +76,9 @@ curl -X POST https://dashboard.example.com/api/v1/auth/login \
 | --- | :---: | :---: | :---: |
 | 节点 | 读写删 | 读写删 | 只读 |
 | 客户端 | 查看/断开 | 查看/断开 | 只读 |
+| Public Endpoint | 只读 | 只读 | 只读 |
+| Endpoint Policy | 读写删 | 读写删 | 只读 |
+| HTTP 请求日志 | 只读 | 只读 | 只读 |
 | ACL | 读写删 | 读写删 | 只读 |
 | 告警 | 读写删 | 读写 | 只读 |
 | 告警规则 | 读写删 | 只读 | 只读 |
@@ -90,6 +93,7 @@ curl -X POST https://dashboard.example.com/api/v1/auth/login \
 | 总览 | 服务状态、节点概览、告警概览 |
 | 节点 | Control Plane 节点列表和详情 |
 | 客户端 | Relay 在线客户端、代理列表、断开客户端 |
+| Public Endpoint | 公开 HTTP Endpoint、访问策略和请求日志 |
 | 流量 | 节点和客户端流量条形图 |
 | ACL | 访问控制规则列表、新增、删除 |
 | 告警 | 告警列表、确认告警 |
@@ -120,6 +124,68 @@ Relay Admin 不可用时，客户端页会显示配置或连接错误。检查�
 curl -H "Authorization: Bearer <strong-relay-admin-token>" \
   http://127.0.0.1:7001/api/v1/admin/health
 ```
+
+## Public Endpoint
+
+Public Endpoint 由 Relay 的 HTTP Gateway 按 Host 头路由到桌面端 HTTP 隧道。TCP 隧道仍使用远端端口监听，不受 Public Gateway 影响。
+
+Relay 示例：
+
+```bash
+relay \
+  -bind 0.0.0.0 \
+  -control-port 7000 \
+  -auth-token <strong-relay-token> \
+  -require-auth \
+  -admin-listen 127.0.0.1:7001 \
+  -admin-token <strong-relay-admin-token> \
+  -public-http-listen 0.0.0.0:80 \
+  -domain-suffix apps.example.com \
+  -tls-mode off
+```
+
+Endpoint API：
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/endpoints` | 查看当前公开 Endpoint |
+| `GET` | `/api/v1/endpoint-policies` | 查看 Endpoint 访问策略 |
+| `POST` | `/api/v1/endpoint-policies` | 新增或更新策略 |
+| `DELETE` | `/api/v1/endpoint-policies/{id}` | 删除策略 |
+| `GET` | `/api/v1/http-requests?limit=100` | 查看请求日志 |
+
+策略字段：
+
+| 字段 | 说明 |
+| --- | --- |
+| `auth_mode` | `none`、`basic_auth`、`bearer_token` |
+| `basic_username` / `basic_password` | Basic Auth 凭据；密码只写入，不在列表响应中回显 |
+| `bearer_token` | Bearer Token；只写入，不在列表响应中回显 |
+| `allowed_ips` / `denied_ips` | 单 IP 或 CIDR |
+| `not_before` / `not_after` | 策略生效时间窗 |
+| `rate_limit_per_minute` | 每 IP 每分钟请求上限 |
+| `max_concurrent` | 每 IP 最大并发请求数 |
+
+创建 Basic Auth 策略示例：
+
+```bash
+curl -X POST https://dashboard.example.com/api/v1/endpoint-policies \
+  -H "Authorization: Bearer <dashboard-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"id":"basic-dev","name":"Dev Basic","auth_mode":"basic_auth","basic_username":"dev","basic_password":"<strong-password>","rate_limit_per_minute":60}'
+```
+
+通过 CLI 发布本机服务：
+
+```bash
+nextunnel desktop publish \
+  --http 3000 \
+  --subdomain demo \
+  --auth basic \
+  --access-policy-id basic-dev
+```
+
+请求日志默认记录时间、Host、Path、方法、状态码、延迟、上下行字节、客户端 IP、策略结果和隧道名；当前不保存请求 body。
 
 ## ACL 管理
 

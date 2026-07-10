@@ -60,6 +60,7 @@ nextunnel
     ├── status
     ├── connect
     ├── disconnect
+    ├── publish
     ├── settings get|set
     ├── nat detect
     └── network apply|reset
@@ -76,14 +77,14 @@ nextunnel
 
 ```bash
 nextunnel server paths
-nextunnel server install --version v0.6.5-alpha --non-interactive --public-host example.com
+nextunnel server install --version v0.7.0-beta --non-interactive --public-host example.com
 nextunnel server status
 nextunnel server health
 nextunnel server logs --follow
 nextunnel server restart
 nextunnel server down
 nextunnel server up
-nextunnel server update --version v0.6.5-alpha
+nextunnel server update --version v0.7.0-beta
 nextunnel server uninstall --purge
 ```
 
@@ -91,7 +92,7 @@ nextunnel server uninstall --purge
 
 | 参数 | 说明 |
 | --- | --- |
-| `--version` | Release 版本，例如 `v0.6.5-alpha` |
+| `--version` | Release 版本，例如 `v0.7.0-beta` |
 | `--package-url` | 服务端发布包 URL、本地路径或 `file://` 路径 |
 | `--sha256` | 发布包 SHA256 |
 | `--release-base-url` | 自定义 Release 下载基址 |
@@ -235,11 +236,38 @@ nextunnel desktop settings set \
   --stun example.com:3478
 
 nextunnel desktop connect --relay example.com:7000 --token <strong-relay-token>
+nextunnel desktop publish --http 3000 --subdomain demo --auth none
 nextunnel desktop nat detect
 nextunnel desktop network apply
 nextunnel desktop network reset
 nextunnel desktop disconnect
 ```
+
+发布本机 HTTP 服务为 Public Endpoint：
+
+```bash
+nextunnel desktop publish \
+  --http 3000 \
+  --subdomain demo \
+  --auth basic \
+  --access-policy-id basic-dev \
+  --host-header 127.0.0.1:3000
+```
+
+常用参数：
+
+| 参数 | 说明 |
+| --- | --- |
+| `--http` | 必填，本机 HTTP 服务端口 |
+| `--domain` | 完整公开域名，优先级高于 `--subdomain` |
+| `--subdomain` | Public Gateway 子域名前缀，Relay 会结合 `domain-suffix` 生成域名 |
+| `--auth` | `none`、`basic/basic_auth`、`bearer/bearer_token`；未显式传 `--access-policy-id` 时会映射为默认策略 ID |
+| `--access-policy-id` | Relay 已配置的 Endpoint Policy ID |
+| `--host-header` | 转发到本机服务时覆盖 Host Header |
+| `--inspect` | 是否开启请求级观测日志，默认开启 |
+| `--expires-at` | Endpoint 过期时间，RFC3339 格式 |
+
+`publish` 会通过桌面端本机控制 API 创建 HTTP 隧道配置；访问策略本身需要先通过 Dashboard `/api/v1/endpoint-policies` 或 Relay Admin API 写入。
 
 显式指定控制文件：
 

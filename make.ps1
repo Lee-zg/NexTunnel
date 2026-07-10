@@ -12,7 +12,7 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $RepoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$DefaultVersion = "v0.6.5-alpha"
+$DefaultVersion = "v0.7.0-beta"
 $DefaultWintunSha256 = "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51"
 $DefaultMacHost = "10.160.166.44"
 $DefaultMacUser = "lizhigang"
@@ -40,6 +40,7 @@ $TargetDescriptions = [ordered]@{
     "verify-scripts-static" = "静态校验验证脚本、参数契约并输出 JSON 报告"
     "verify-dashboard"     = "验证 Dashboard 生产 API"
     "verify-dashboard-ssh" = "通过 SSH 隧道验证 Dashboard"
+    "verify-public-endpoint" = "验证 Public Endpoint 公开入口"
     "verify-tun"           = "运行本地 TUN 验证"
     "verify-p2p-tun"       = "运行 Windows/macOS P2P TUN 验证"
     "verify-edge"          = "运行 Edge/Anycast 演练"
@@ -196,7 +197,29 @@ function Invoke-GoBuild {
 
     $outputPath = Join-Path "..\build" (Get-BinaryOutputName -Name $OutputName)
     Invoke-InDirectory $ModulePath {
-        Invoke-RequiredCommand -Command "go" -Arguments @("build", "-o", $outputPath, $PackagePath)
+        if (-not (Get-Command "go" -ErrorAction SilentlyContinue)) {
+            throw "未找到命令 'go'。请先安装并确认它已加入 PATH。"
+        }
+
+        $previousGoCache = $env:GOCACHE
+        $usingWorkspaceGoCache = [string]::IsNullOrWhiteSpace($previousGoCache)
+        if ($usingWorkspaceGoCache) {
+            # 与测试入口保持一致，避免受限桌面环境无法写入系统 Go 缓存导致本地构建失败。
+            $env:GOCACHE = Join-Path $RepoRoot ".gocache-test"
+            New-Item -ItemType Directory -Path $env:GOCACHE -Force | Out-Null
+        }
+
+        try {
+            Invoke-RequiredCommand -Command "go" -Arguments @("build", "-o", $outputPath, $PackagePath)
+        }
+        finally {
+            if ($usingWorkspaceGoCache) {
+                Remove-Item Env:GOCACHE -ErrorAction SilentlyContinue
+            }
+            else {
+                $env:GOCACHE = $previousGoCache
+            }
+        }
     }
 }
 
@@ -407,6 +430,32 @@ function Invoke-Target {
                 "-AllowedOrigin", $dashboardOrigin,
                 "-ReportPath", "dist\verification\dashboard-ssh-latest.json"
             )
+        }
+        "verify-public-endpoint" {
+            $gatewayUrl = Get-SettingValue -Name "GATEWAY_URL" -DefaultValue ""
+            $hostHeader = Get-SettingValue -Name "HOST_HEADER" -DefaultValue ""
+            $expectedContains = Get-SettingValue -Name "EXPECTED_CONTAINS" -DefaultValue ""
+            $basicUsername = Get-SettingValue -Name "BASIC_USERNAME" -DefaultValue ""
+            $basicPassword = Get-SettingValue -Name "BASIC_PASSWORD" -DefaultValue ""
+            $bearerToken = Get-SettingValue -Name "BEARER_TOKEN" -DefaultValue ""
+            $dashboardUrl = Get-SettingValue -Name "DASHBOARD_URL" -DefaultValue ""
+            $dashboardToken = Get-SettingValue -Name "DASHBOARD_TOKEN" -DefaultValue ""
+            Assert-SettingValue -Name "GATEWAY_URL" -Value $gatewayUrl
+            $verifyPublicEndpointArguments = @(
+                "-GatewayUrl", $gatewayUrl,
+                "-HostHeader", $hostHeader,
+                "-ExpectedContains", $expectedContains,
+                "-BasicUsername", $basicUsername,
+                "-BasicPassword", $basicPassword,
+                "-BearerToken", $bearerToken,
+                "-DashboardUrl", $dashboardUrl,
+                "-DashboardToken", $dashboardToken,
+                "-ReportPath", "dist\verification\public-endpoint-latest.json"
+            )
+            if (Test-SettingEnabled -Value (Get-SettingValue -Name "ALLOW_INSECURE_HTTP_CREDENTIALS" -DefaultValue "")) {
+                $verifyPublicEndpointArguments += "-AllowInsecureHttpCredentials"
+            }
+            Invoke-RepoScript -ScriptPath "scripts\verify-public-endpoint.ps1" -Arguments $verifyPublicEndpointArguments
         }
         "verify-scripts-static" {
             Invoke-RepoScript -ScriptPath "scripts\verify-scripts-static.ps1"

@@ -10,6 +10,10 @@ import type {
   AlertEvent,
   AuditEvent,
   RuntimeConfigStatus,
+  EndpointInfo,
+  EndpointPolicy,
+  HTTPRequestLog,
+  RelayBackedListResponse,
 } from './types'
 
 const API_BASE_URL = import.meta.env.VITE_DASHBOARD_API_BASE ?? ''
@@ -137,6 +141,34 @@ export const disconnectClient = async (token: string, clientID: string): Promise
     token,
   })
 }
+
+export const fetchEndpoints = async (token: string): Promise<RelayBackedListResponse<EndpointInfo>> =>
+  request<RelayBackedListResponse<EndpointInfo>>('/api/v1/endpoints', { token })
+
+export const fetchEndpointPolicies = async (token: string): Promise<RelayBackedListResponse<EndpointPolicy>> =>
+  request<RelayBackedListResponse<EndpointPolicy>>('/api/v1/endpoint-policies', { token })
+
+export const upsertEndpointPolicy = async (token: string, policy: EndpointPolicy): Promise<EndpointPolicy> =>
+  request<EndpointPolicy>('/api/v1/endpoint-policies', {
+    method: 'POST',
+    token,
+    body: JSON.stringify(policy),
+  })
+
+export const deleteEndpointPolicy = async (token: string, policyID: string): Promise<void> => {
+  await request<{ deleted: string }>(`/api/v1/endpoint-policies/${encodeURIComponent(policyID)}`, {
+    method: 'DELETE',
+    token,
+  })
+}
+
+export const fetchHTTPRequestLogs = async (
+  token: string,
+  limit = 100,
+): Promise<RelayBackedListResponse<HTTPRequestLog>> =>
+  request<RelayBackedListResponse<HTTPRequestLog>>(`/api/v1/http-requests?limit=${encodeURIComponent(limit)}`, {
+    token,
+  })
 
 export const acknowledgeAlert = async (token: string, alertID: string, ackedBy: string): Promise<void> => {
   await request<{ acked: string }>(`/api/v1/alerts/${encodeURIComponent(alertID)}/ack`, {

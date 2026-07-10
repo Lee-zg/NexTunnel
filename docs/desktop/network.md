@@ -98,7 +98,7 @@ Linux 会使用 `ip` 命令。macOS 安装 helper 后由 LaunchDaemon 执行受�
 
 ### macOS 应用 TUN 失败
 
-v0.6.5-alpha 中 macOS 系统路由 TUN 需要 root/sudo、授权 helper 或 LaunchDaemon。没有这些外部条件时，只声明 P2P/Relay 可用，系统路由 TUN 按预览能力处理。
+v0.7.0-beta 中 macOS 系统路由 TUN 需要 root/sudo、授权 helper 或 LaunchDaemon。没有这些外部条件时，只声明 P2P/Relay 可用，系统路由 TUN 按预览能力处理。
 
 ### Linux TUN 失败
 

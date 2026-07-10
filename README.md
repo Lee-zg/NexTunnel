@@ -2,7 +2,7 @@
 
 NexTunnel 是一套开源内网穿透、P2P 直连优先和可视化运维工具。它提供桌面客户端、统一 CLI、Relay 中继、Control Plane、Dashboard、NAT/STUN 探测和生产验证脚本，适合把本地开发服务、内网 Web、数据库管理入口或自部署节点安全地暴露给受控访问方。
 
-当前版本：`v0.6.5-alpha`
+当前版本：`v0.7.0-beta`
 
 > 设计目标：像 FRP/NPS 一样快速完成内网服务暴露，同时提供更明确的桌面体验、服务端可观测性、P2P/TUN 诊断和发布前生产验收路径。
 
@@ -24,13 +24,15 @@ NexTunnel 是一套开源内网穿透、P2P 直连优先和可视化运维工具
 | 能力 | 当前状态 |
 | --- | --- |
 | Relay TCP/QUIC | 已支持客户端注册、认证、TCP/HTTP 代理、中继转发和流量统计 |
-| Relay Admin API | 已支持在线客户端列表和断开客户端，强制 Bearer Token |
+| Public Endpoint | 已支持 Relay HTTP Gateway 按 Host 路由到 HTTP 隧道，返回公开 URL，并记录请求日志 |
+| Endpoint 访问策略 | 已支持 `none`、Basic Auth、Bearer Token、IP allow/deny、时间窗、每 IP 限流和最大并发 |
+| Relay Admin API | 已支持在线客户端、Public Endpoint、Endpoint Policy、HTTP 请求日志和断开客户端，强制 Bearer Token |
 | Control Plane | 已支持节点注册、心跳、Peer 查询、路由/IPAM、ACL、Key 和审计查询 |
-| Dashboard | 已支持登录、RBAC、节点、客户端、流量、ACL、告警、审计和配置状态 |
-| 桌面端 | 已支持 Relay 连接、TCP/HTTP 隧道、本机端口扫描、运行日志、设置导入导出 |
+| Dashboard | 已支持登录、RBAC、节点、客户端、Public Endpoint、请求日志、ACL、告警、审计和配置状态 |
+| 桌面端 | 已支持 Relay 连接、TCP/HTTP 隧道、Public Endpoint 发布、本机端口扫描、运行日志、设置导入导出 |
 | P2P/NAT | 已支持 STUN/NAT 探测、P2P 状态展示和验证工具链 |
 | 系统 TUN | Windows 随包 Wintun；macOS 通过用户提权安装官方内置 LaunchDaemon helper 后启用 System TUN |
-| 生产验证 | 已提供 Dashboard、SSH 隧道、P2P/TUN、Edge/Anycast、eBPF Linux 验证脚本 |
+| 生产验证 | 已提供 Dashboard、Public Endpoint、SSH 隧道、P2P/TUN、Edge/Anycast、eBPF Linux 验证脚本 |
 
 ## 架构概览
 
@@ -39,14 +41,16 @@ flowchart LR
   desktop["桌面客户端<br/>Wails + Vue + Go"]
   cli["nextunnel CLI"]
   relay["Relay Server<br/>TCP 7000 / QUIC 7443"]
+  gateway["Public HTTP Gateway<br/>80 / 443"]
   relayAdmin["Relay Admin API<br/>127.0.0.1:7001"]
   cp["Control Plane<br/>HTTP 9090"]
   nat["NAT Detector<br/>STUN UDP 3478"]
   dash["Dashboard<br/>HTTP/HTTPS 8080"]
   db["SQLite / JSONL<br/>配置、审计、运行数据"]
-  scripts["验证脚本<br/>verify-dashboard / tun / edge / ebpf"]
+  scripts["验证脚本<br/>verify-dashboard / public-endpoint / tun / edge / ebpf"]
 
   desktop -->|"Relay Token<br/>代理注册"| relay
+  gateway -->|"Host 路由<br/>HTTP 隧道"| relay
   desktop -->|"节点注册、路由、ACL"| cp
   desktop -->|"STUN 探测"| nat
   desktop -. "P2P 直连候选" .-> desktop
@@ -80,11 +84,11 @@ flowchart LR
 
 ```bash
 curl -fL -o /tmp/nextunnel-install.sh \
-  https://github.com/Lee-zg/NexTunnel/releases/download/v0.6.5-alpha/install.sh
+  https://github.com/Lee-zg/NexTunnel/releases/download/v0.7.0-beta/install.sh
 chmod +x /tmp/nextunnel-install.sh
 
 sudo /tmp/nextunnel-install.sh install \
-  --version v0.6.5-alpha \
+  --version v0.7.0-beta \
   --public-host example.com \
   --relay-token <strong-relay-token> \
   --control-token <strong-control-token> \
@@ -106,21 +110,22 @@ sudo /opt/nextunnel/deploy/server/install.sh logs --no-log-follow --log-lines 80
 | --- | --- |
 | Relay TCP | `example.com:7000` |
 | Relay QUIC | `example.com:7443/udp` |
+| Public HTTP Gateway | `http://*.apps.example.com` |
 | Control Plane | `http://example.com:9090` |
 | Dashboard | `http://example.com:8080` |
 | NAT Detector | `example.com:3478/udp` |
 
-安全组或防火墙至少放行 `7000/tcp`。启用 QUIC、NAT 和 Dashboard 时，还需要放行 `7443/udp`、`3478/udp`、`8080/tcp`。`7001/tcp` 是 Relay Admin API，默认只给 Dashboard 内部访问，不应开放公网。
+安全组或防火墙至少放行 `7000/tcp`。启用 QUIC、NAT、Dashboard 和 Public Endpoint 时，还需要按需放行 `7443/udp`、`3478/udp`、`8080/tcp`、`80/tcp` 或 `443/tcp`。`7001/tcp` 是 Relay Admin API，默认只给 Dashboard 内部访问，不应开放公网。
 
 ### 2. Windows PowerShell 部署服务端
 
 ```powershell
 Invoke-WebRequest `
-  -Uri "https://github.com/Lee-zg/NexTunnel/releases/download/v0.6.5-alpha/install.ps1" `
+  -Uri "https://github.com/Lee-zg/NexTunnel/releases/download/v0.7.0-beta/install.ps1" `
   -OutFile ".\install.ps1"
 
 .\install.ps1 -Action install `
-  -Version v0.6.5-alpha `
+  -Version v0.7.0-beta `
   -PublicHost "example.com" `
   -RelayToken "<strong-relay-token>" `
   -ControlToken "<strong-control-token>" `
@@ -135,7 +140,7 @@ Invoke-WebRequest `
 .\install.ps1 -Action health
 .\install.ps1 -Action logs
 .\install.ps1 -Action restart
-.\install.ps1 -Action update -Version v0.6.5-alpha
+.\install.ps1 -Action update -Version v0.7.0-beta
 ```
 
 ### 3. Docker Compose 试用
@@ -211,6 +216,7 @@ nextunnel desktop settings set \
   --control-token <strong-control-token> \
   --stun example.com:3478
 nextunnel desktop connect --relay example.com:7000 --token <strong-relay-token>
+nextunnel desktop publish --http 3000 --subdomain demo --auth none
 nextunnel desktop network apply
 ```
 
@@ -219,7 +225,7 @@ nextunnel desktop network apply
 `deploy/server/.env` 最小生产配置示例：
 
 ```dotenv
-NEXTUNNEL_VERSION=v0.6.5-alpha
+NEXTUNNEL_VERSION=v0.7.0-beta
 NEXTUNNEL_PUBLIC_HOST=example.com
 
 RELAY_BIND=0.0.0.0
@@ -260,8 +266,14 @@ relay \
   -auth-token <strong-relay-token> \
   -require-auth \
   -admin-listen 127.0.0.1:7001 \
-  -admin-token <strong-relay-admin-token>
+  -admin-token <strong-relay-admin-token> \
+  -public-http-listen 0.0.0.0:80 \
+  -domain-suffix apps.example.com \
+  -tls-mode off \
+  -request-log-retention 1000
 ```
+
+如需由 Relay 直接终止 HTTPS，配置 `-public-https-listen 0.0.0.0:443 -tls-mode file -public-tls-cert <cert.pem> -public-tls-key <key.pem>`。`tls-mode=acme` 当前是保留配置，生产建议先使用外部反代或 `tls-mode=file`。
 
 Control Plane：
 
@@ -306,6 +318,11 @@ Relay Admin API：
 | `GET` | `/api/v1/admin/health` | Relay 管理接口健康检查 |
 | `GET` | `/api/v1/admin/clients` | 查看在线客户端与代理 |
 | `DELETE` | `/api/v1/admin/clients/{client_id}` | 断开指定客户端 |
+| `GET` | `/api/v1/admin/endpoints` | 查看 Public Endpoint |
+| `GET` | `/api/v1/admin/endpoint-policies` | 查看 Endpoint 访问策略 |
+| `POST` | `/api/v1/admin/endpoint-policies` | 新增或更新 Endpoint 访问策略 |
+| `DELETE` | `/api/v1/admin/endpoint-policies/{id}` | 删除 Endpoint 访问策略 |
+| `GET` | `/api/v1/admin/http-requests` | 查看 Public Endpoint HTTP 请求日志 |
 
 Dashboard 常用 API：
 
@@ -314,6 +331,11 @@ Dashboard 常用 API：
 | `POST` | `/api/v1/auth/login` | 登录并获取 token |
 | `GET` | `/api/v1/clients` | 查看 Relay 在线客户端 |
 | `DELETE` | `/api/v1/clients/{id}` | 断开客户端 |
+| `GET` | `/api/v1/endpoints` | 查看 Public Endpoint |
+| `GET` | `/api/v1/endpoint-policies` | 查看 Endpoint 访问策略 |
+| `POST` | `/api/v1/endpoint-policies` | 新增或更新 Endpoint 访问策略 |
+| `DELETE` | `/api/v1/endpoint-policies/{id}` | 删除 Endpoint 访问策略 |
+| `GET` | `/api/v1/http-requests` | 查看 HTTP 请求日志 |
 | `GET` | `/api/v1/audit` | 查询审计日志 |
 | `GET` | `/api/v1/config/status` | 查看运行配置状态 |
 
@@ -353,10 +375,11 @@ Windows PowerShell：
 | 查看帮助 | `make help` | `.\make.ps1 help` |
 | Go 测试 | `make test-go` | `.\make.ps1 test-go` |
 | 验证脚本静态校验 | `make verify-scripts-static` | `.\make.ps1 verify-scripts-static` |
+| Public Endpoint 验证 | `make verify-public-endpoint GATEWAY_URL=https://demo.example.com` | `$env:GATEWAY_URL='https://demo.example.com'; .\make.ps1 verify-public-endpoint` |
 | 桌面构建 | `make build` | `.\make.ps1 build` |
 | 服务端构建 | `make build-server` | `.\make.ps1 build-server` |
-| CLI 打包 | `make package-cli VERSION=v0.6.5-alpha` | `.\scripts\package-cli.ps1 -Version v0.6.5-alpha` |
-| 服务端打包 | `make package-server VERSION=v0.6.5-alpha` | `.\scripts\package-server.ps1 -Version v0.6.5-alpha` |
+| CLI 打包 | `make package-cli VERSION=v0.7.0-beta` | `.\scripts\package-cli.ps1 -Version v0.7.0-beta` |
+| 服务端打包 | `make package-server VERSION=v0.7.0-beta` | `.\scripts\package-server.ps1 -Version v0.7.0-beta` |
 | 文档构建 | `cd docs && npm run docs:build` | `cd docs; npm run docs:build` |
 
 ## 生产验证
@@ -368,6 +391,7 @@ make verify-scripts-static
 make verify-edge
 make verify-tun
 make verify-p2p-tun MAC_HOST=mac.example.com MAC_USER=<ssh-user>
+GATEWAY_URL=https://demo.example.com HOST_HEADER=demo.example.com make verify-public-endpoint
 DASHBOARD_URL=https://dashboard.example.com DASHBOARD_PASSWORD=<password> make verify-dashboard
 DASHBOARD_HOST=server.example.com DASHBOARD_USER=root DASHBOARD_IDENTITY=~/.ssh/id_ed25519 make verify-dashboard-ssh
 sudo INTERFACE_NAME=eth0 make verify-ebpf-linux
@@ -398,7 +422,7 @@ Windows 的 `netsh` 在目标接口不存在或接口名未被识别时可能返
 
 ```bash
 sudo ./install.sh install \
-  --release-base-url https://cos.example.com/nextunnel/v0.6.5-alpha \
+  --release-base-url https://cos.example.com/nextunnel/v0.7.0-beta \
   --sha256 <sha256>
 ```
 
@@ -406,7 +430,7 @@ sudo ./install.sh install \
 
 ### macOS 系统 TUN 当前是什么状态？
 
-v0.6.5-alpha 中 macOS P2P/Relay 可普通运行；系统路由 TUN 改为官方内置可选 helper，由用户在网络页授权安装，或执行 `sudo nextunnel helper install`。helper 以 LaunchDaemon 形式运行，负责创建 utun、fd passing 和受控路由应用/清理。signed/notarized PKG 只是更顺滑的分发增强；没有 `dist/verification/tun-macos-latest.json` 真实报告前，不应把 macOS 系统 TUN 宣称为生产通过。
+v0.7.0-beta 中 macOS P2P/Relay 可普通运行；系统路由 TUN 改为官方内置可选 helper，由用户在网络页授权安装，或执行 `sudo nextunnel helper install`。helper 以 LaunchDaemon 形式运行，负责创建 utun、fd passing 和受控路由应用/清理。signed/notarized PKG 只是更顺滑的分发增强；没有 `dist/verification/tun-macos-latest.json` 真实报告前，不应把 macOS 系统 TUN 宣称为生产通过。
 
 更多问题见 [FAQ](docs/faq.md)。
 

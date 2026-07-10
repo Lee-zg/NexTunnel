@@ -198,7 +198,7 @@ func TestCheckForUpdateUsesReleaseAssetAndSemver(t *testing.T) {
 	withUpdateCheckServer(t, server)
 
 	originalVersion := AppVersion
-	AppVersion = "0.6.5-alpha"
+	AppVersion = "0.7.0-beta"
 	t.Cleanup(func() { AppVersion = originalVersion })
 
 	info, err := app.CheckForUpdate()
@@ -220,7 +220,7 @@ func TestUpdateInfoFromReleaseDoesNotPromptForSameOldOrInvalidVersion(t *testing
 		current string
 		latest  string
 	}{
-		{name: "same", current: "0.6.5-alpha", latest: "v0.6.5-alpha"},
+		{name: "same", current: "0.7.0-beta", latest: "v0.7.0-beta"},
 		{name: "old", current: "0.6.3", latest: "v0.6.1"},
 		{name: "invalid latest", current: "0.6.3", latest: "nightly"},
 		{name: "invalid current", current: "dev", latest: "v0.7.0"},
@@ -646,6 +646,51 @@ func TestCreateTunnelWritesActivityLog(t *testing.T) {
 	logs := mustListActivityLogs(t, app, ActivityLogFilter{Category: activityLogCategoryOperation, Limit: 10})
 	if len(logs) == 0 || logs[0].Action != activityActionCreateTunnel || logs[0].TargetID != tunnelInfo.ID {
 		t.Fatalf("expected create tunnel activity log, got %+v", logs)
+	}
+}
+
+func TestPublishEndpointSavesPublicHTTPConfig(t *testing.T) {
+	app := newTestApp(t)
+
+	result, err := app.PublishEndpoint(PublishEndpointInput{
+		HTTPPort:       3000,
+		Subdomain:      "demo",
+		AuthMode:       "basic",
+		HostHeader:     "127.0.0.1:3000",
+		InspectEnabled: true,
+		ExpiresAt:      "2026-08-01T00:00:00Z",
+	})
+	if err != nil {
+		t.Fatalf("PublishEndpoint: %v", err)
+	}
+	if result.Started || result.Message == "" || result.Tunnel == nil {
+		t.Fatalf("unexpected publish result: %+v", result)
+	}
+	if result.Tunnel.ProxyType != "http" || result.Tunnel.RemotePort != 0 || result.Tunnel.Domain != "demo" {
+		t.Fatalf("unexpected tunnel info: %+v", result.Tunnel)
+	}
+	if result.Tunnel.AccessPolicyID != "basic_auth" || !result.Tunnel.InspectEnabled || result.Tunnel.HostHeader != "127.0.0.1:3000" {
+		t.Fatalf("unexpected endpoint metadata: %+v", result.Tunnel)
+	}
+
+	saved, err := app.store.Get(result.Tunnel.ID)
+	if err != nil {
+		t.Fatalf("get saved tunnel: %v", err)
+	}
+	if saved == nil || saved.Domain != "demo" || saved.AccessPolicyID != "basic_auth" || !saved.InspectEnabled {
+		t.Fatalf("unexpected saved endpoint: %+v", saved)
+	}
+}
+
+func TestPublishEndpointRejectsUnknownAuthMode(t *testing.T) {
+	app := newTestApp(t)
+
+	if _, err := app.PublishEndpoint(PublishEndpointInput{
+		HTTPPort:  3000,
+		Subdomain: "demo",
+		AuthMode:  "typo",
+	}); err == nil {
+		t.Fatal("expected unsupported auth mode error")
 	}
 }
 

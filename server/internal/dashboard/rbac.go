@@ -16,7 +16,7 @@ const (
 
 // Permission defines a resource action permission.
 type Permission struct {
-	Resource string // nodes, clients, acl, alerts, users, audit, alert-rules, metrics, config
+	Resource string // nodes, clients, endpoints, endpoint-policies, http-requests, acl, alerts, users, audit, alert-rules, metrics, config
 	Action   string // read, write, delete
 }
 
@@ -26,6 +26,9 @@ var rolePermissions = map[Role][]Permission{
 		// Full access to everything
 		{"nodes", "read"}, {"nodes", "write"}, {"nodes", "delete"},
 		{"clients", "read"}, {"clients", "delete"},
+		{"endpoints", "read"},
+		{"endpoint-policies", "read"}, {"endpoint-policies", "write"}, {"endpoint-policies", "delete"},
+		{"http-requests", "read"},
 		{"acl", "read"}, {"acl", "write"}, {"acl", "delete"},
 		{"alerts", "read"}, {"alerts", "write"}, {"alerts", "delete"},
 		{"alert-rules", "read"}, {"alert-rules", "write"}, {"alert-rules", "delete"},
@@ -38,6 +41,9 @@ var rolePermissions = map[Role][]Permission{
 	RoleOperator: {
 		{"nodes", "read"}, {"nodes", "write"}, {"nodes", "delete"},
 		{"clients", "read"}, {"clients", "delete"},
+		{"endpoints", "read"},
+		{"endpoint-policies", "read"}, {"endpoint-policies", "write"}, {"endpoint-policies", "delete"},
+		{"http-requests", "read"},
 		{"acl", "read"}, {"acl", "write"}, {"acl", "delete"},
 		{"alerts", "read"}, {"alerts", "write"},
 		{"alert-rules", "read"},
@@ -48,6 +54,9 @@ var rolePermissions = map[Role][]Permission{
 	RoleViewer: {
 		{"nodes", "read"},
 		{"clients", "read"},
+		{"endpoints", "read"},
+		{"endpoint-policies", "read"},
+		{"http-requests", "read"},
 		{"acl", "read"},
 		{"alerts", "read"},
 		{"alert-rules", "read"},
@@ -93,6 +102,12 @@ func routePermission(method, path string) (resource, action string) {
 		resource = "nodes"
 	case strings.HasPrefix(p, "clients"):
 		resource = "clients"
+	case strings.HasPrefix(p, "endpoint-policies"):
+		resource = "endpoint-policies"
+	case strings.HasPrefix(p, "endpoints"):
+		resource = "endpoints"
+	case strings.HasPrefix(p, "http-requests"):
+		resource = "http-requests"
 	case strings.HasPrefix(p, "acl"):
 		resource = "acl"
 	case strings.HasPrefix(p, "alerts/"):

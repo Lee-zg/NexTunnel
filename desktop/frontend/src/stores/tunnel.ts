@@ -74,6 +74,12 @@ export interface Tunnel {
   local_addr: string
   local_port: number
   remote_port: number
+  domain?: string
+  host_header?: string
+  public_url?: string
+  access_policy_id?: string
+  inspect_enabled?: boolean
+  expires_at?: string
   status: string
   connection_type: string
 }
@@ -84,6 +90,12 @@ export interface CreateTunnelInput {
   local_addr: string
   local_port: number
   remote_port: number
+  domain?: string
+  host_header?: string
+  public_url?: string
+  access_policy_id?: string
+  inspect_enabled?: boolean
+  expires_at?: string
 }
 
 export interface UpdateTunnelInput extends CreateTunnelInput {

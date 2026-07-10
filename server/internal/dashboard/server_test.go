@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/nextunnel/pkg/types"
 )
 
 func newTestServer() *Server {
@@ -313,6 +315,164 @@ func TestDashboard_ClientsProxyRelayAdmin(t *testing.T) {
 	}
 	if deletedClient != "client-1" {
 		t.Fatalf("relay admin delete not called, got %q", deletedClient)
+	}
+}
+
+func TestDashboard_PublicEndpointAPIsUnconfiguredReturnExplainableStatus(t *testing.T) {
+	s := newTestServer()
+	token := doLogin(t, s)
+
+	cases := []struct {
+		path string
+	}{
+		{path: "/api/v1/endpoints"},
+		{path: "/api/v1/endpoint-policies"},
+		{path: "/api/v1/http-requests"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.path, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			s.Handler().ServeHTTP(w, authReq(http.MethodGet, tc.path, token, nil))
+			if w.Code != http.StatusOK {
+				t.Fatalf("request %s: %d %s", tc.path, w.Code, w.Body.String())
+			}
+			var resp APIResponse
+			if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			data, _ := json.Marshal(resp.Data)
+			var list RelayBackedListResponse[json.RawMessage]
+			if err := json.Unmarshal(data, &list); err != nil {
+				t.Fatalf("decode relay-backed list: %v", err)
+			}
+			if list.Configured || list.Available || len(list.Items) != 0 || list.Error == "" {
+				t.Fatalf("unexpected relay-backed status: %+v", list)
+			}
+		})
+	}
+}
+
+func TestDashboard_PublicEndpointAPIsProxyRelayAdmin(t *testing.T) {
+	deletedPolicy := ""
+	relayAdmin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer relay-admin-token" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/admin/endpoints":
+			writeJSON(w, http.StatusOK, []types.EndpointInfo{{
+				ClientID:  "client-1",
+				ProxyName: "web",
+				Domain:    "demo.example.com",
+				PublicURL: "https://demo.example.com",
+				Status:    types.ProxyStatusActive,
+			}})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/admin/endpoint-policies":
+			writeJSON(w, http.StatusOK, []types.EndpointPolicy{{ID: "basic", AuthMode: "basic_auth"}})
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/admin/endpoint-policies":
+			var policy types.EndpointPolicy
+			if err := json.NewDecoder(r.Body).Decode(&policy); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			policy.BasicPassword = ""
+			writeJSON(w, http.StatusOK, policy)
+		case r.Method == http.MethodDelete && r.URL.Path == "/api/v1/admin/endpoint-policies/basic":
+			deletedPolicy = "basic"
+			writeJSON(w, http.StatusOK, map[string]string{"deleted": deletedPolicy})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/admin/http-requests":
+			if r.URL.Query().Get("limit") != "25" {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			writeJSON(w, http.StatusOK, []types.HTTPRequestLog{{Host: "demo.example.com", StatusCode: http.StatusOK}})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer relayAdmin.Close()
+
+	cfg := DefaultServerConfig()
+	cfg.Auth.SecretKey = "dashboard-test-secret"
+	cfg.Auth.DefaultPass = "admin-test-password"
+	cfg.RelayAdminURL = relayAdmin.URL
+	cfg.RelayAdminToken = "relay-admin-token"
+	s := NewServer(cfg)
+	token := doLogin(t, s)
+
+	w := httptest.NewRecorder()
+	s.Handler().ServeHTTP(w, authReq(http.MethodGet, "/api/v1/endpoints", token, nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("list endpoints: %d %s", w.Code, w.Body.String())
+	}
+	var resp APIResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode endpoints response: %v", err)
+	}
+	data, _ := json.Marshal(resp.Data)
+	var endpoints RelayBackedListResponse[types.EndpointInfo]
+	if err := json.Unmarshal(data, &endpoints); err != nil {
+		t.Fatalf("decode endpoints: %v", err)
+	}
+	if !endpoints.Configured || !endpoints.Available || len(endpoints.Items) != 1 || endpoints.Items[0].Domain != "demo.example.com" {
+		t.Fatalf("unexpected endpoints: %+v", endpoints)
+	}
+
+	w = httptest.NewRecorder()
+	s.Handler().ServeHTTP(w, authReq(http.MethodPost, "/api/v1/endpoint-policies", token, types.EndpointPolicy{
+		ID:            "basic",
+		AuthMode:      "basic_auth",
+		BasicUsername: "user",
+		BasicPassword: "pass",
+	}))
+	if w.Code != http.StatusOK {
+		t.Fatalf("upsert endpoint policy: %d %s", w.Code, w.Body.String())
+	}
+
+	w = httptest.NewRecorder()
+	s.Handler().ServeHTTP(w, authReq(http.MethodGet, "/api/v1/http-requests?limit=25", token, nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("list http requests: %d %s", w.Code, w.Body.String())
+	}
+	resp = APIResponse{}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode request logs response: %v", err)
+	}
+	data, _ = json.Marshal(resp.Data)
+	var logs RelayBackedListResponse[types.HTTPRequestLog]
+	if err := json.Unmarshal(data, &logs); err != nil {
+		t.Fatalf("decode request logs: %v", err)
+	}
+	if !logs.Available || len(logs.Items) != 1 || logs.Items[0].Host != "demo.example.com" {
+		t.Fatalf("unexpected request logs: %+v", logs)
+	}
+
+	w = httptest.NewRecorder()
+	s.Handler().ServeHTTP(w, authReq(http.MethodDelete, "/api/v1/endpoint-policies/basic", token, nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("delete endpoint policy: %d %s", w.Code, w.Body.String())
+	}
+	if deletedPolicy != "basic" {
+		t.Fatalf("relay admin delete not called, got %q", deletedPolicy)
+	}
+}
+
+func TestDashboard_RBACPublicEndpointPermissions(t *testing.T) {
+	resource, action := routePermission(http.MethodPost, "/api/v1/endpoint-policies")
+	if resource != "endpoint-policies" || action != "write" {
+		t.Fatalf("unexpected endpoint policy permission: %s/%s", resource, action)
+	}
+	if !RoleOperator.HasPermission("endpoint-policies", "write") {
+		t.Fatal("operator should be able to manage endpoint policies")
+	}
+	if RoleViewer.HasPermission("endpoint-policies", "write") {
+		t.Fatal("viewer should not be able to write endpoint policies")
+	}
+	resource, action = routePermission(http.MethodGet, "/api/v1/http-requests")
+	if resource != "http-requests" || action != "read" || !RoleViewer.HasPermission(resource, action) {
+		t.Fatalf("viewer should be able to read HTTP request logs, got %s/%s", resource, action)
 	}
 }
 

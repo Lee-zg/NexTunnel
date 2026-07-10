@@ -49,6 +49,8 @@ const (
 	defaultServerNodeCheckTimeout     = 3 * time.Second
 	settingActiveServerNodeID         = "active_server_node_id"
 	settingServerNodes                = "server_nodes"
+	publishEndpointResolveAttempts    = 20
+	publishEndpointResolveInterval    = 100 * time.Millisecond
 
 	activityLogLevelInfo  = "info"
 	activityLogLevelWarn  = "warning"
@@ -92,7 +94,7 @@ const (
 )
 
 // AppVersion 通过发布脚本的 -ldflags 注入；默认值用于本地开发和测试。
-var AppVersion = "0.6.5-alpha"
+var AppVersion = "0.7.0-beta"
 
 var (
 	createVirtualNetworkTUNDevice    = p2p.CreateKernelTUN
@@ -323,6 +325,12 @@ type TunnelInfo struct {
 	LocalAddr      string `json:"local_addr"`
 	LocalPort      int    `json:"local_port"`
 	RemotePort     int    `json:"remote_port"`
+	Domain         string `json:"domain,omitempty"`
+	HostHeader     string `json:"host_header,omitempty"`
+	PublicURL      string `json:"public_url,omitempty"`
+	AccessPolicyID string `json:"access_policy_id,omitempty"`
+	InspectEnabled bool   `json:"inspect_enabled,omitempty"`
+	ExpiresAt      string `json:"expires_at,omitempty"`
 	Status         string `json:"status"`
 	ConnectionType string `json:"connection_type"`
 }
@@ -336,22 +344,22 @@ func (a *App) GetTunnels() ([]TunnelInfo, error) {
 
 	result := make([]TunnelInfo, 0, len(configs))
 	for _, c := range configs {
-		info := TunnelInfo{
-			ID:             c.ID,
-			Name:           c.Name,
-			ProxyType:      c.ProxyType,
-			LocalAddr:      c.LocalAddr,
-			LocalPort:      c.LocalPort,
-			RemotePort:     c.RemotePort,
-			Status:         c.Status,
-			ConnectionType: a.tunnelConnectionType(c.Status),
-		}
+		info := *a.tunnelInfoFromConfig(c)
 		// Enrich with live status from manager
 		if a.manager != nil {
 			for _, s := range a.manager.GetStatus() {
 				if s.ProxyName == c.Name {
 					info.Status = string(s.Status)
+					info.RemotePort = int(s.RemotePort)
 					info.ConnectionType = a.tunnelConnectionType(info.Status)
+					if s.PublicURL != "" {
+						info.PublicURL = s.PublicURL
+					}
+					if shouldPersistTunnelRuntimeFields(c, info) {
+						if err := a.store.UpdateRuntimeEndpointFields(c.ID, info.RemotePort, info.PublicURL); err != nil {
+							a.logger.Warn("failed to persist tunnel runtime endpoint fields", "tunnel", c.Name, "error", err)
+						}
+					}
 				}
 			}
 		}
@@ -362,21 +370,55 @@ func (a *App) GetTunnels() ([]TunnelInfo, error) {
 
 // CreateTunnelInput is the input for creating a tunnel.
 type CreateTunnelInput struct {
-	Name       string `json:"name"`
-	ProxyType  string `json:"proxy_type"`
-	LocalAddr  string `json:"local_addr"`
-	LocalPort  int    `json:"local_port"`
-	RemotePort int    `json:"remote_port"`
+	Name           string `json:"name"`
+	ProxyType      string `json:"proxy_type"`
+	LocalAddr      string `json:"local_addr"`
+	LocalPort      int    `json:"local_port"`
+	RemotePort     int    `json:"remote_port"`
+	Domain         string `json:"domain,omitempty"`
+	HostHeader     string `json:"host_header,omitempty"`
+	PublicURL      string `json:"public_url,omitempty"`
+	AccessPolicyID string `json:"access_policy_id,omitempty"`
+	InspectEnabled bool   `json:"inspect_enabled,omitempty"`
+	ExpiresAt      string `json:"expires_at,omitempty"`
 }
 
 // UpdateTunnelInput is the input for updating a stopped tunnel configuration.
 type UpdateTunnelInput struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	ProxyType  string `json:"proxy_type"`
-	LocalAddr  string `json:"local_addr"`
-	LocalPort  int    `json:"local_port"`
-	RemotePort int    `json:"remote_port"`
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	ProxyType      string `json:"proxy_type"`
+	LocalAddr      string `json:"local_addr"`
+	LocalPort      int    `json:"local_port"`
+	RemotePort     int    `json:"remote_port"`
+	Domain         string `json:"domain,omitempty"`
+	HostHeader     string `json:"host_header,omitempty"`
+	PublicURL      string `json:"public_url,omitempty"`
+	AccessPolicyID string `json:"access_policy_id,omitempty"`
+	InspectEnabled bool   `json:"inspect_enabled,omitempty"`
+	ExpiresAt      string `json:"expires_at,omitempty"`
+}
+
+// PublishEndpointInput 是 CLI/桌面端快速发布本地 HTTP 服务的最小输入。
+type PublishEndpointInput struct {
+	Name           string `json:"name"`
+	HTTPPort       int    `json:"http_port"`
+	LocalAddr      string `json:"local_addr"`
+	Subdomain      string `json:"subdomain"`
+	Domain         string `json:"domain"`
+	AuthMode       string `json:"auth_mode"`
+	HostHeader     string `json:"host_header"`
+	AccessPolicyID string `json:"access_policy_id"`
+	InspectEnabled bool   `json:"inspect_enabled"`
+	ExpiresAt      string `json:"expires_at"`
+}
+
+// PublishEndpointInfo 返回公开 Endpoint 配置与启动结果。
+type PublishEndpointInfo struct {
+	Tunnel    *TunnelInfo `json:"tunnel"`
+	PublicURL string      `json:"public_url"`
+	Started   bool        `json:"started"`
+	Message   string      `json:"message"`
 }
 
 type ServerConfigInput struct {
@@ -433,24 +475,25 @@ func (a *App) CreateTunnel(input CreateTunnelInput) (*TunnelInfo, error) {
 		proxyType = defaultProxyType
 	}
 	tc := &config.TunnelConfig{
-		ID:         uuid.New().String(),
-		Name:       input.Name,
-		ProxyType:  proxyType,
-		LocalAddr:  input.LocalAddr,
-		LocalPort:  input.LocalPort,
-		RemotePort: input.RemotePort,
-		Status:     statusStopped,
+		ID:             uuid.New().String(),
+		Name:           input.Name,
+		ProxyType:      proxyType,
+		LocalAddr:      input.LocalAddr,
+		LocalPort:      input.LocalPort,
+		RemotePort:     input.RemotePort,
+		Domain:         strings.TrimSpace(input.Domain),
+		HostHeader:     strings.TrimSpace(input.HostHeader),
+		PublicURL:      strings.TrimSpace(input.PublicURL),
+		AccessPolicyID: strings.TrimSpace(input.AccessPolicyID),
+		InspectEnabled: input.InspectEnabled,
+		ExpiresAt:      strings.TrimSpace(input.ExpiresAt),
+		Status:         statusStopped,
 	}
 	if err := a.store.Create(tc); err != nil {
 		a.recordError(err)
 		return nil, err
 	}
-	info := &TunnelInfo{
-		ID: tc.ID, Name: tc.Name, ProxyType: tc.ProxyType,
-		LocalAddr: tc.LocalAddr, LocalPort: tc.LocalPort,
-		RemotePort: tc.RemotePort, Status: tc.Status,
-		ConnectionType: a.tunnelConnectionType(tc.Status),
-	}
+	info := a.tunnelInfoFromConfig(tc)
 	a.appendActivityLog(activityLog{
 		Level:      activityLogLevelInfo,
 		Category:   activityLogCategoryOperation,
@@ -465,6 +508,8 @@ func (a *App) CreateTunnel(input CreateTunnelInput) (*TunnelInfo, error) {
 			"local_addr":  tc.LocalAddr,
 			"local_port":  fmt.Sprintf("%d", tc.LocalPort),
 			"remote_port": fmt.Sprintf("%d", tc.RemotePort),
+			"domain":      tc.Domain,
+			"public_url":  tc.PublicURL,
 		},
 	})
 	return info, nil
@@ -484,6 +529,7 @@ func (a *App) UpdateTunnel(input UpdateTunnelInput) (*TunnelInfo, error) {
 		LocalAddr:  input.LocalAddr,
 		LocalPort:  input.LocalPort,
 		RemotePort: input.RemotePort,
+		Domain:     input.Domain,
 	}); err != nil {
 		a.recordError(err)
 		return nil, err
@@ -512,16 +558,17 @@ func (a *App) UpdateTunnel(input UpdateTunnelInput) (*TunnelInfo, error) {
 	tc.LocalAddr = input.LocalAddr
 	tc.LocalPort = input.LocalPort
 	tc.RemotePort = input.RemotePort
+	tc.Domain = strings.TrimSpace(input.Domain)
+	tc.HostHeader = strings.TrimSpace(input.HostHeader)
+	tc.PublicURL = strings.TrimSpace(input.PublicURL)
+	tc.AccessPolicyID = strings.TrimSpace(input.AccessPolicyID)
+	tc.InspectEnabled = input.InspectEnabled
+	tc.ExpiresAt = strings.TrimSpace(input.ExpiresAt)
 	if err := a.store.Update(tc); err != nil {
 		a.recordError(err)
 		return nil, err
 	}
-	info := &TunnelInfo{
-		ID: tc.ID, Name: tc.Name, ProxyType: tc.ProxyType,
-		LocalAddr: tc.LocalAddr, LocalPort: tc.LocalPort,
-		RemotePort: tc.RemotePort, Status: tc.Status,
-		ConnectionType: a.tunnelConnectionType(tc.Status),
-	}
+	info := a.tunnelInfoFromConfig(tc)
 	a.clearError()
 	a.appendActivityLog(activityLog{
 		Level:      activityLogLevelInfo,
@@ -537,6 +584,8 @@ func (a *App) UpdateTunnel(input UpdateTunnelInput) (*TunnelInfo, error) {
 			"local_addr":  tc.LocalAddr,
 			"local_port":  fmt.Sprintf("%d", tc.LocalPort),
 			"remote_port": fmt.Sprintf("%d", tc.RemotePort),
+			"domain":      tc.Domain,
+			"public_url":  tc.PublicURL,
 		},
 	})
 	return info, nil
@@ -558,7 +607,102 @@ func validateCreateTunnelInput(input CreateTunnelInput) error {
 	if input.RemotePort < 0 || input.RemotePort > 65535 {
 		return fmt.Errorf("remote port must be between 0 and 65535")
 	}
+	if strings.EqualFold(strings.TrimSpace(input.ProxyType), "http") && strings.TrimSpace(input.Domain) != "" {
+		if strings.ContainsAny(input.Domain, "/\\") {
+			return fmt.Errorf("endpoint domain must not contain path separators")
+		}
+	}
 	return nil
+}
+
+// PublishEndpoint creates an HTTP tunnel configured for the Relay public gateway.
+func (a *App) PublishEndpoint(input PublishEndpointInput) (*PublishEndpointInfo, error) {
+	localAddr := strings.TrimSpace(input.LocalAddr)
+	if localAddr == "" {
+		localAddr = defaultLocalPortScanHost
+	}
+	domain := strings.TrimSpace(input.Domain)
+	if domain == "" {
+		domain = strings.TrimSpace(input.Subdomain)
+	}
+	if domain == "" {
+		return nil, fmt.Errorf("domain or subdomain is required")
+	}
+	name := strings.TrimSpace(input.Name)
+	if name == "" {
+		name = "http-" + strings.ReplaceAll(strings.ReplaceAll(domain, ".", "-"), "_", "-")
+	}
+	accessPolicyID := strings.TrimSpace(input.AccessPolicyID)
+	authMode, err := normalizePublishEndpointAuthMode(input.AuthMode)
+	if err != nil {
+		a.recordError(err)
+		return nil, err
+	}
+	if accessPolicyID == "" && authMode != "none" {
+		accessPolicyID = authMode
+	}
+	tunnelInfo, err := a.CreateTunnel(CreateTunnelInput{
+		Name:           name,
+		ProxyType:      "http",
+		LocalAddr:      localAddr,
+		LocalPort:      input.HTTPPort,
+		RemotePort:     0,
+		Domain:         domain,
+		HostHeader:     input.HostHeader,
+		AccessPolicyID: accessPolicyID,
+		InspectEnabled: input.InspectEnabled,
+		ExpiresAt:      input.ExpiresAt,
+	})
+	if err != nil {
+		return nil, err
+	}
+	started := false
+	message := "endpoint saved; connect Relay before starting"
+	if a.manager != nil && a.manager.IsConnected() {
+		if err := a.StartTunnel(tunnelInfo.ID); err != nil {
+			return nil, err
+		}
+		started = true
+		message = "endpoint published"
+		for attempt := 0; attempt < publishEndpointResolveAttempts; attempt++ {
+			tunnels, err := a.GetTunnels()
+			if err == nil {
+				for i := range tunnels {
+					if tunnels[i].ID == tunnelInfo.ID {
+						tunnelInfo = &tunnels[i]
+						break
+					}
+				}
+			}
+			if tunnelInfo.PublicURL != "" || attempt == publishEndpointResolveAttempts-1 {
+				break
+			}
+			time.Sleep(publishEndpointResolveInterval)
+		}
+	}
+	publicURL := tunnelInfo.PublicURL
+	if publicURL == "" && strings.Contains(domain, ".") {
+		publicURL = "http://" + domain
+	}
+	return &PublishEndpointInfo{
+		Tunnel:    tunnelInfo,
+		PublicURL: publicURL,
+		Started:   started,
+		Message:   message,
+	}, nil
+}
+
+func normalizePublishEndpointAuthMode(value string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "none":
+		return "none", nil
+	case "basic", "basic_auth":
+		return "basic_auth", nil
+	case "bearer", "bearer_token":
+		return "bearer_token", nil
+	default:
+		return "", fmt.Errorf("unsupported auth mode: %s", value)
+	}
 }
 
 // StartTunnel 启动一个已保存的隧道，并向已连接的 Relay 注册代理。
@@ -1194,11 +1338,43 @@ func (a *App) managerConfig() tunnel.TunnelClientConfig {
 // tunnelDefFromConfig 将持久化配置转换为运行时隧道定义。
 func tunnelDefFromConfig(c *config.TunnelConfig) tunnel.TunnelDef {
 	return tunnel.TunnelDef{
-		Name:       c.Name,
-		ProxyType:  c.ProxyType,
-		LocalAddr:  fmt.Sprintf("%s:%d", c.LocalAddr, c.LocalPort),
-		RemotePort: uint16(c.RemotePort),
+		Name:           c.Name,
+		ProxyType:      c.ProxyType,
+		LocalAddr:      fmt.Sprintf("%s:%d", c.LocalAddr, c.LocalPort),
+		RemotePort:     uint16(c.RemotePort),
+		Domain:         c.Domain,
+		HostHeader:     c.HostHeader,
+		PublicURL:      c.PublicURL,
+		AccessPolicyID: c.AccessPolicyID,
+		InspectEnabled: c.InspectEnabled,
+		ExpiresAt:      c.ExpiresAt,
 	}
+}
+
+func (a *App) tunnelInfoFromConfig(c *config.TunnelConfig) *TunnelInfo {
+	return &TunnelInfo{
+		ID:             c.ID,
+		Name:           c.Name,
+		ProxyType:      c.ProxyType,
+		LocalAddr:      c.LocalAddr,
+		LocalPort:      c.LocalPort,
+		RemotePort:     c.RemotePort,
+		Domain:         c.Domain,
+		HostHeader:     c.HostHeader,
+		PublicURL:      c.PublicURL,
+		AccessPolicyID: c.AccessPolicyID,
+		InspectEnabled: c.InspectEnabled,
+		ExpiresAt:      c.ExpiresAt,
+		Status:         c.Status,
+		ConnectionType: a.tunnelConnectionType(c.Status),
+	}
+}
+
+func shouldPersistTunnelRuntimeFields(c *config.TunnelConfig, info TunnelInfo) bool {
+	if info.RemotePort != 0 && c.RemotePort != info.RemotePort {
+		return true
+	}
+	return info.PublicURL != "" && c.PublicURL != info.PublicURL
 }
 
 // isPersistedTunnelEnabled 判断哪些持久化隧道需要在重连后自动注册。

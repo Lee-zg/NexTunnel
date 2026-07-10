@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/nextunnel/pkg/audit"
+	"github.com/nextunnel/pkg/types"
 )
 
 // ServerConfig configures the dashboard HTTP server.
@@ -212,6 +213,13 @@ func (s *Server) registerRoutes() {
 	// Connected clients
 	s.mux.HandleFunc("GET /api/v1/clients", s.handleListClients)
 	s.mux.HandleFunc("DELETE /api/v1/clients/{id}", s.handleDisconnectClient)
+
+	// Public Endpoints
+	s.mux.HandleFunc("GET /api/v1/endpoints", s.handleListEndpoints)
+	s.mux.HandleFunc("GET /api/v1/endpoint-policies", s.handleListEndpointPolicies)
+	s.mux.HandleFunc("POST /api/v1/endpoint-policies", s.handleUpsertEndpointPolicy)
+	s.mux.HandleFunc("DELETE /api/v1/endpoint-policies/{id}", s.handleDeleteEndpointPolicy)
+	s.mux.HandleFunc("GET /api/v1/http-requests", s.handleListHTTPRequestLogs)
 
 	// ACL
 	s.mux.HandleFunc("GET /api/v1/acl", s.handleListACL)
@@ -501,6 +509,129 @@ func (s *Server) handleDisconnectClient(w http.ResponseWriter, r *http.Request) 
 	}
 	s.audit.Log(audit.NewEvent(r.Header.Get("X-User-ID"), audit.ActionDelete, "clients", clientID, audit.ResultSuccess))
 	writeSuccess(w, map[string]string{"disconnected": clientID})
+}
+
+func (s *Server) handleListEndpoints(w http.ResponseWriter, _ *http.Request) {
+	if s.relayAdmin == nil {
+		writeSuccess(w, RelayBackedListResponse[types.EndpointInfo]{
+			Configured: false,
+			Available:  false,
+			Error:      "relay admin API is not configured",
+			Items:      []types.EndpointInfo{},
+		})
+		return
+	}
+	endpoints, err := s.relayAdmin.ListEndpoints()
+	if err != nil {
+		writeSuccess(w, RelayBackedListResponse[types.EndpointInfo]{
+			Configured: true,
+			Available:  false,
+			Error:      err.Error(),
+			Items:      []types.EndpointInfo{},
+		})
+		return
+	}
+	writeSuccess(w, RelayBackedListResponse[types.EndpointInfo]{
+		Configured: true,
+		Available:  true,
+		Items:      endpoints,
+	})
+}
+
+func (s *Server) handleListEndpointPolicies(w http.ResponseWriter, _ *http.Request) {
+	if s.relayAdmin == nil {
+		writeSuccess(w, RelayBackedListResponse[types.EndpointPolicy]{
+			Configured: false,
+			Available:  false,
+			Error:      "relay admin API is not configured",
+			Items:      []types.EndpointPolicy{},
+		})
+		return
+	}
+	policies, err := s.relayAdmin.ListEndpointPolicies()
+	if err != nil {
+		writeSuccess(w, RelayBackedListResponse[types.EndpointPolicy]{
+			Configured: true,
+			Available:  false,
+			Error:      err.Error(),
+			Items:      []types.EndpointPolicy{},
+		})
+		return
+	}
+	writeSuccess(w, RelayBackedListResponse[types.EndpointPolicy]{
+		Configured: true,
+		Available:  true,
+		Items:      policies,
+	})
+}
+
+func (s *Server) handleUpsertEndpointPolicy(w http.ResponseWriter, r *http.Request) {
+	if s.relayAdmin == nil {
+		writeError(w, http.StatusServiceUnavailable, "relay admin API is not configured")
+		return
+	}
+	var policy types.EndpointPolicy
+	if err := json.NewDecoder(r.Body).Decode(&policy); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid endpoint policy")
+		return
+	}
+	saved, err := s.relayAdmin.UpsertEndpointPolicy(policy)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	s.audit.Log(audit.NewEvent(r.Header.Get("X-User-ID"), audit.ActionUpdate, "endpoint-policies", policy.ID, audit.ResultSuccess))
+	writeSuccess(w, saved)
+}
+
+func (s *Server) handleDeleteEndpointPolicy(w http.ResponseWriter, r *http.Request) {
+	if s.relayAdmin == nil {
+		writeError(w, http.StatusServiceUnavailable, "relay admin API is not configured")
+		return
+	}
+	id := r.PathValue("id")
+	if err := s.relayAdmin.DeleteEndpointPolicy(id); err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	s.audit.Log(audit.NewEvent(r.Header.Get("X-User-ID"), audit.ActionDelete, "endpoint-policies", id, audit.ResultSuccess))
+	writeSuccess(w, map[string]string{"deleted": id})
+}
+
+func (s *Server) handleListHTTPRequestLogs(w http.ResponseWriter, r *http.Request) {
+	if s.relayAdmin == nil {
+		writeSuccess(w, RelayBackedListResponse[types.HTTPRequestLog]{
+			Configured: false,
+			Available:  false,
+			Error:      "relay admin API is not configured",
+			Items:      []types.HTTPRequestLog{},
+		})
+		return
+	}
+	limit := 100
+	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
+		parsedLimit, err := strconv.Atoi(rawLimit)
+		if err != nil || parsedLimit <= 0 {
+			writeError(w, http.StatusBadRequest, "invalid request log limit")
+			return
+		}
+		limit = parsedLimit
+	}
+	logs, err := s.relayAdmin.ListHTTPRequestLogs(limit)
+	if err != nil {
+		writeSuccess(w, RelayBackedListResponse[types.HTTPRequestLog]{
+			Configured: true,
+			Available:  false,
+			Error:      err.Error(),
+			Items:      []types.HTTPRequestLog{},
+		})
+		return
+	}
+	writeSuccess(w, RelayBackedListResponse[types.HTTPRequestLog]{
+		Configured: true,
+		Available:  true,
+		Items:      logs,
+	})
 }
 
 // --- ACL handlers ---

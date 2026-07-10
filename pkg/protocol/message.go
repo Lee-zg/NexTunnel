@@ -68,13 +68,17 @@ type AuthRespMessage struct {
 
 // NewProxyMessage is the payload for TypeNewProxy.
 type NewProxyMessage struct {
-	ProxyName  string `json:"proxy_name"`
-	ProxyType  string `json:"proxy_type"`
-	LocalAddr  string `json:"local_addr"`
-	RemotePort uint16 `json:"remote_port"`
-	Domain     string `json:"domain,omitempty"`
-	HostHeader string `json:"host_header,omitempty"`
-	UseHTTPS   bool   `json:"use_https,omitempty"`
+	ProxyName      string `json:"proxy_name"`
+	ProxyType      string `json:"proxy_type"`
+	LocalAddr      string `json:"local_addr"`
+	RemotePort     uint16 `json:"remote_port"`
+	Domain         string `json:"domain,omitempty"`
+	HostHeader     string `json:"host_header,omitempty"`
+	UseHTTPS       bool   `json:"use_https,omitempty"`
+	PublicURL      string `json:"public_url,omitempty"`
+	AccessPolicyID string `json:"access_policy_id,omitempty"`
+	InspectEnabled bool   `json:"inspect_enabled,omitempty"`
+	ExpiresAt      string `json:"expires_at,omitempty"`
 }
 
 // NewProxyRespMessage is the payload for TypeNewProxyResp.
@@ -82,6 +86,7 @@ type NewProxyRespMessage struct {
 	ProxyName  string `json:"proxy_name"`
 	Success    bool   `json:"success"`
 	RemotePort uint16 `json:"remote_port"`
+	PublicURL  string `json:"public_url,omitempty"`
 	Error      string `json:"error,omitempty"`
 }
 
@@ -283,9 +288,31 @@ func NewHTTPProxyMessage(name, localAddr string, remotePort uint16, domain, host
 	return marshalMessage(TypeNewProxy, &NewProxyMessage{ProxyName: name, ProxyType: "http", LocalAddr: localAddr, RemotePort: remotePort, Domain: domain, HostHeader: hostHeader, UseHTTPS: useHTTPS})
 }
 
+// NewHTTPProxyMessageWithEndpoint creates a TypeNewProxy message with public endpoint metadata.
+func NewHTTPProxyMessageWithEndpoint(name, localAddr string, remotePort uint16, domain, hostHeader string, useHTTPS bool, publicURL, accessPolicyID string, inspectEnabled bool, expiresAt string) (*Message, error) {
+	return marshalMessage(TypeNewProxy, &NewProxyMessage{
+		ProxyName:      name,
+		ProxyType:      "http",
+		LocalAddr:      localAddr,
+		RemotePort:     remotePort,
+		Domain:         domain,
+		HostHeader:     hostHeader,
+		UseHTTPS:       useHTTPS,
+		PublicURL:      publicURL,
+		AccessPolicyID: accessPolicyID,
+		InspectEnabled: inspectEnabled,
+		ExpiresAt:      expiresAt,
+	})
+}
+
 // NewNewProxyRespMessage creates a TypeNewProxyResp message.
 func NewNewProxyRespMessage(name string, success bool, remotePort uint16, errMsg string) (*Message, error) {
 	return marshalMessage(TypeNewProxyResp, &NewProxyRespMessage{ProxyName: name, Success: success, RemotePort: remotePort, Error: errMsg})
+}
+
+// NewNewProxyRespMessageWithURL creates a TypeNewProxyResp message including the public URL.
+func NewNewProxyRespMessageWithURL(name string, success bool, remotePort uint16, publicURL, errMsg string) (*Message, error) {
+	return marshalMessage(TypeNewProxyResp, &NewProxyRespMessage{ProxyName: name, Success: success, RemotePort: remotePort, PublicURL: publicURL, Error: errMsg})
 }
 
 // NewCloseProxyMessage creates a TypeCloseProxy message.

@@ -47,6 +47,7 @@ func (a *App) startControlServer() error {
 	mux.HandleFunc("POST /api/v1/network/reset", a.withControlAuth(token, a.handleControlNetworkReset))
 	mux.HandleFunc("GET /api/v1/settings", a.withControlAuth(token, a.handleControlGetSettings))
 	mux.HandleFunc("POST /api/v1/settings", a.withControlAuth(token, a.handleControlSaveSettings))
+	mux.HandleFunc("POST /api/v1/publish", a.withControlAuth(token, a.handleControlPublish))
 	server := &http.Server{
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
@@ -185,6 +186,20 @@ func (a *App) handleControlSaveSettings(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeControlJSON(w, http.StatusOK, map[string]string{"status": "saved"})
+}
+
+func (a *App) handleControlPublish(w http.ResponseWriter, r *http.Request) {
+	var input PublishEndpointInput
+	if err := decodeControlJSON(r, &input); err != nil {
+		writeControlError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	result, err := a.PublishEndpoint(input)
+	if err != nil {
+		writeControlError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeControlJSON(w, http.StatusOK, result)
 }
 
 func writeControlJSON(w http.ResponseWriter, status int, value any) {

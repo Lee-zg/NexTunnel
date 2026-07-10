@@ -190,6 +190,9 @@ func (m *Manager) registerAllTunnels() error {
 		}
 
 		t.def.RemotePort = npr.RemotePort
+		if npr.PublicURL != "" {
+			t.def.PublicURL = npr.PublicURL
+		}
 		t.status.Store(types.ProxyStatusActive)
 		m.logger.Info("tunnel registered", "name", t.def.Name, "remotePort", npr.RemotePort)
 	}
@@ -251,6 +254,9 @@ func (m *Manager) handleServerMessage(msg *protocol.Message) {
 			return
 		}
 		t.def.RemotePort = npr.RemotePort
+		if npr.PublicURL != "" {
+			t.def.PublicURL = npr.PublicURL
+		}
 		t.status.Store(types.ProxyStatusActive)
 		m.logger.Info("dynamic tunnel registered", "name", npr.ProxyName, "remotePort", npr.RemotePort)
 
@@ -373,6 +379,10 @@ func (m *Manager) IsConnected() bool {
 // buildProxyMessage creates the appropriate NewProxy message based on tunnel type.
 func buildProxyMessage(def TunnelDef) (*protocol.Message, error) {
 	if def.ProxyType == "http" {
+		if def.PublicURL != "" || def.AccessPolicyID != "" || def.InspectEnabled || def.ExpiresAt != "" {
+			return protocol.NewHTTPProxyMessageWithEndpoint(def.Name, def.LocalAddr, def.RemotePort,
+				def.Domain, def.HostHeader, def.UseHTTPS, def.PublicURL, def.AccessPolicyID, def.InspectEnabled, def.ExpiresAt)
+		}
 		return protocol.NewHTTPProxyMessage(def.Name, def.LocalAddr, def.RemotePort,
 			def.Domain, def.HostHeader, def.UseHTTPS)
 	}

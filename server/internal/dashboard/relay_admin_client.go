@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/nextunnel/pkg/types"
 )
 
 const relayAdminTimeout = 5 * time.Second
@@ -47,6 +49,83 @@ func (c *RelayAdminClient) ListClients() ([]ClientSnapshot, error) {
 		clients = []ClientSnapshot{}
 	}
 	return clients, nil
+}
+
+func (c *RelayAdminClient) ListEndpoints() ([]types.EndpointInfo, error) {
+	req, err := c.newRequest(http.MethodGet, "/api/v1/admin/endpoints", nil)
+	if err != nil {
+		return nil, err
+	}
+	var endpoints []types.EndpointInfo
+	if err := c.doJSON(req, &endpoints); err != nil {
+		return nil, err
+	}
+	if endpoints == nil {
+		endpoints = []types.EndpointInfo{}
+	}
+	return endpoints, nil
+}
+
+func (c *RelayAdminClient) ListEndpointPolicies() ([]types.EndpointPolicy, error) {
+	req, err := c.newRequest(http.MethodGet, "/api/v1/admin/endpoint-policies", nil)
+	if err != nil {
+		return nil, err
+	}
+	var policies []types.EndpointPolicy
+	if err := c.doJSON(req, &policies); err != nil {
+		return nil, err
+	}
+	if policies == nil {
+		policies = []types.EndpointPolicy{}
+	}
+	return policies, nil
+}
+
+func (c *RelayAdminClient) UpsertEndpointPolicy(policy types.EndpointPolicy) (*types.EndpointPolicy, error) {
+	body, err := json.Marshal(policy)
+	if err != nil {
+		return nil, fmt.Errorf("encode endpoint policy: %w", err)
+	}
+	req, err := c.newRequest(http.MethodPost, "/api/v1/admin/endpoint-policies", strings.NewReader(string(body)))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	var saved types.EndpointPolicy
+	if err := c.doJSON(req, &saved); err != nil {
+		return nil, err
+	}
+	return &saved, nil
+}
+
+func (c *RelayAdminClient) DeleteEndpointPolicy(id string) error {
+	if strings.TrimSpace(id) == "" {
+		return fmt.Errorf("policy id is required")
+	}
+	req, err := c.newRequest(http.MethodDelete, "/api/v1/admin/endpoint-policies/"+url.PathEscape(id), nil)
+	if err != nil {
+		return err
+	}
+	return c.doJSON(req, nil)
+}
+
+func (c *RelayAdminClient) ListHTTPRequestLogs(limit int) ([]types.HTTPRequestLog, error) {
+	path := "/api/v1/admin/http-requests"
+	if limit > 0 {
+		path += fmt.Sprintf("?limit=%d", limit)
+	}
+	req, err := c.newRequest(http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	var logs []types.HTTPRequestLog
+	if err := c.doJSON(req, &logs); err != nil {
+		return nil, err
+	}
+	if logs == nil {
+		logs = []types.HTTPRequestLog{}
+	}
+	return logs, nil
 }
 
 func (c *RelayAdminClient) Health() error {

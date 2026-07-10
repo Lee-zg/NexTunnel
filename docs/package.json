@@ -1,7 +1,7 @@
 {
   "name": "nextunnel-docs",
   "private": true,
-  "version": "0.6.5-alpha",
+  "version": "0.7.0-beta",
   "type": "module",
   "scripts": {
     "docs": "vitepress dev .",

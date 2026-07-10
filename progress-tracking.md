@@ -1,8 +1,8 @@
 # NexTunnel 项目进度跟踪
 
-> **最后更新时间**：2026-07-03（macOS System TUN 改为开源内置可选 helper：用户提权安装，signed/notarized PKG 降级为增强通道）
+> **最后更新时间**：2026-07-10（Public Endpoint 主干接入：Relay HTTP Gateway、Endpoint Policy、请求日志、Dashboard API、CLI publish 和验证脚本）
 > **当前口径**：按"可验收 MVP / 原型验证 / 占位设计 / 未接入生产链路"统计，避免把单元测试通过等同于生产完成。
-> **本次更新重点**：放弃把 Apple Developer Program / signed-notarized PKG 作为 macOS System TUN 默认前置；改为官方内置可选 LaunchDaemon helper，用户通过网络页管理员授权或 `sudo nextunnel helper install` 安装。signed/notarized PKG 保留为更顺滑的分发增强；当前仍无 `dist/verification/tun-macos-latest.json`，macOS System TUN 保持外部阻塞/待实机验收口径。
+> **本次更新重点**：围绕下一阶段公开 Beta / 自部署可用性补齐 Public Endpoint 后端闭环。真实生产通过仍以 `dist/verification/public-endpoint-latest.json`、Dashboard HTTPS、TUN、eBPF 和 Edge 报告为准。
 
 ---
 
@@ -37,12 +37,25 @@ Phase 4 [全球加速]  ██████████████████�
 |:---|:---|:---|
 | Relay TCP 数据面 | 控制连接、工作连接、代理监听、会话桥接、基础统计 | 生产部署仍需完整认证策略、限流、审计、配置管理 |
 | Relay QUIC 数据面 | QUIC listener 可启动，work stream 握手后接入既有会话桥接；客户端 QUIC WorkConn 已完成 E2E，默认 TLS 1.3 且不跳过证书校验 | 生产证书信任链、超时/限流策略和真实网络压测待验证 |
+| Public Endpoint | Relay HTTP Gateway 可按 Host 路由到 HTTP 隧道；Endpoint Policy 支持 Basic/Bearer/IP/时间窗/限流/并发；请求日志进入 Relay Admin 和 Dashboard API；CLI 支持 `nextunnel desktop publish`；新增验证脚本 | `tls-mode=acme` 仅保留；生产域名/证书、真实公网 Gateway 验收、请求详情和 body capture 仍需产品化 |
 | 控制面 | HTTP API 支持节点注册、心跳、Peer 查询、ACL、密钥、自动 IPAM、节点路由下发；支持 Bearer Token、mTLS、SQLite 持久化恢复、审计日志 | 尚未实现 gRPC/proto、OIDC、实时 ACL 下发 |
-| Dashboard 后端/前端 | REST API、bcrypt 密码、可配置 CORS、启动期弱配置拒绝、SQLiteDashboardStore、Vue Dashboard 登录/节点/流量/ACL/告警界面；`cmd/dashboard` 独立进程、静态资源托管、Release 打包和一键部署已接入；服务器二 API 端到端验证通过；受限环境支持 SSH 隧道验证且默认拒绝非本机 HTTP 管理员密码传输 | HTTPS 反向代理仍受域名证书阻塞：`lee97.top` 证书已过期且 Let's Encrypt HTTP-01 被 DNSPod webblock 拦截；`sslip.io` 临时域名在服务器二公网侧被阿里云 ICP 拦截 |
-| 桌面端 | 连接/断开服务器、创建/删除配置、启动/停止单隧道、状态刷新 | 仍需更完整的错误可视化、Relay/STUN 配置持久化、P2P 操作流 |
+| Dashboard 后端/前端 | REST API、bcrypt 密码、可配置 CORS、启动期弱配置拒绝、SQLiteDashboardStore、Vue Dashboard 登录/节点/流量/ACL/告警界面；新增 Public Endpoint / Policy / HTTP 请求日志 API 和最小运营页；`cmd/dashboard` 独立进程、静态资源托管、Release 打包和一键部署已接入 | HTTPS 反向代理仍受域名证书阻塞；Public Endpoint 真实公网 Gateway、请求详情深化和 body capture 仍需报告收口 |
+| 桌面端 | 连接/断开服务器、创建/删除配置、启动/停止单隧道、状态刷新；HTTP 隧道配置可携带 Domain、Host Header、策略 ID、请求观测开关和公开 URL | 仍需更完整的错误可视化、Relay/STUN 配置持久化、P2P 操作流 |
 | P2P/TUN | NAT/STUN/ICE/WireGuard/Mesh 测试原型；TUN 平台抽象、虚拟 IP 分配和路由下发已完成；Windows Wintun 打包链路和 macOS LaunchDaemon helper 链路已接入；预检已输出 Windows Wintun、macOS helper/LaunchDaemon、Linux CAP_NET_ADMIN 等环境方案 | 真实 OS TUN 仍需 Windows/macOS 授权实机验收、签名/公证和 JSON 报告归档 |
 | 调度器 | scheduler/relay/migration setter 已替换为强类型接口，路径切换闭环有集成测试 | 真实弱网和多路径迁移压测待执行 |
 | 质量门禁 | Go 版本统一到 1.25.0；Go 测试/构建/vet 过滤 `frontend/node_modules` 与 `web/node_modules`；前端补 `test` 脚本 | 当前 shell 无可用 `npm`，已用本地 `vue-tsc` CLI 完成等价验证 |
+
+---
+
+## 下一阶段 Beta 迭代方案（2026-07-10 对齐）
+
+| 优先级 | 目标 | 当前状态 | 验收出口 |
+|:---:|:---|:---|:---|
+| P0 | Beta 收口与发布可信度 | 继续以 Dashboard HTTPS、发布包安装冒烟、Windows/macOS TUN 和验证脚本报告作为 release gate | `go test ./...`、前端类型检查、Dashboard 验证、发布包实物报告 |
+| P1 | Public Endpoint / 域名 HTTPS | Relay HTTP Gateway、Host 路由、`domain-suffix`、`tls-mode=file`、CLI publish、Dashboard API 已接入；ACME 保留 | `scripts/verify-public-endpoint.ps1` 生成 `public-endpoint-latest.json` |
+| P2 | Endpoint 访问策略与限流 | Basic/Bearer/IP allow-deny/时间窗/每 IP 限流/最大并发已接入 Relay 策略引擎 | 单元测试覆盖策略匹配，Dashboard/Relay Admin API 可写入和查询策略 |
+| P3 | HTTP 请求观测 | 请求日志已记录 Host、Path、方法、状态码、延迟、字节、客户端 IP、策略结果；默认不保存 body | Dashboard `/api/v1/http-requests` 和 Relay Admin API 可查询，验证脚本可确认日志出现 |
+| P4 | P2P/TUN 与 Edge 生产验证收口 | 本轮不扩大 P2P 功能面，继续补 Windows/macOS TUN、弱网/多路径、eBPF 压测和多地域 Edge 报告 | 只有归档 JSON 报告的能力写入 release notes |
 
 ---
 

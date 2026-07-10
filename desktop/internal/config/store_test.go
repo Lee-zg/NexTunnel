@@ -112,6 +112,15 @@ func TestStoreCRUD(t *testing.T) {
 		t.Errorf("update status failed: got %s", statusUpdated.Status)
 	}
 
+	// UpdateRuntimeEndpointFields
+	if err := store.UpdateRuntimeEndpointFields("t1", 0, "https://demo.example.com"); err != nil {
+		t.Fatalf("update runtime endpoint fields: %v", err)
+	}
+	endpointUpdated, _ := store.Get("t1")
+	if endpointUpdated.PublicURL != "https://demo.example.com" || endpointUpdated.RemotePort != 0 {
+		t.Errorf("update runtime endpoint fields failed: got %+v", endpointUpdated)
+	}
+
 	// Delete
 	if err := store.Delete("t1"); err != nil {
 		t.Fatalf("delete: %v", err)

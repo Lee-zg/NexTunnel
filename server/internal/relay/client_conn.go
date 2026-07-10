@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -108,29 +109,56 @@ func (cc *ClientConn) handleNewProxy(msg *protocol.Message) {
 	cc.proxiesMu.Lock()
 	if len(cc.proxies) >= cc.server.config.MaxProxiesPerClient {
 		cc.proxiesMu.Unlock()
-		cc.sendProxyResp(np.ProxyName, false, 0, "max proxies exceeded")
+		cc.sendProxyResp(np.ProxyName, false, 0, "", "max proxies exceeded")
 		return
 	}
 	if _, exists := cc.proxies[np.ProxyName]; exists {
 		cc.proxiesMu.Unlock()
-		cc.sendProxyResp(np.ProxyName, false, 0, "proxy name already in use")
+		cc.sendProxyResp(np.ProxyName, false, 0, "", "proxy name already in use")
 		return
 	}
 	cc.proxiesMu.Unlock()
 
 	info := types.ProxyInfo{
-		ProxyName:  np.ProxyName,
-		ProxyType:  types.ProxyType(np.ProxyType),
-		LocalAddr:  np.LocalAddr,
-		RemotePort: np.RemotePort,
-		Status:     types.ProxyStatusActive,
+		ProxyName:      np.ProxyName,
+		ProxyType:      types.ProxyType(np.ProxyType),
+		LocalAddr:      np.LocalAddr,
+		RemotePort:     np.RemotePort,
+		Domain:         endpointDomainFromProxy(cc.server.config, np.Domain, np.ProxyName),
+		HostHeader:     np.HostHeader,
+		PublicURL:      np.PublicURL,
+		AccessPolicyID: np.AccessPolicyID,
+		InspectEnabled: np.InspectEnabled,
+		Status:         types.ProxyStatusActive,
+	}
+	if strings.TrimSpace(np.ExpiresAt) != "" {
+		expiresAt, err := time.Parse(time.RFC3339, strings.TrimSpace(np.ExpiresAt))
+		if err != nil {
+			cc.sendProxyResp(np.ProxyName, false, 0, "", fmt.Sprintf("invalid expires_at: %v", err))
+			return
+		}
+		info.ExpiresAt = expiresAt
+	}
+	if info.PublicURL == "" && info.Domain != "" {
+		info.PublicURL = publicURLForDomain(cc.server.config, info.Domain, np.UseHTTPS)
 	}
 
 	proxy := NewProxy(info, cc, cc.logger)
-	if err := proxy.Start(cc.server.config.BindAddr); err != nil {
-		cc.logger.Error("failed to start proxy", "proxy", np.ProxyName, "error", err)
-		cc.sendProxyResp(np.ProxyName, false, 0, fmt.Sprintf("failed to listen: %v", err))
-		return
+	if info.Domain != "" {
+		if err := cc.server.registerEndpointRoute(info.Domain, proxy); err != nil {
+			cc.sendProxyResp(np.ProxyName, false, 0, "", err.Error())
+			return
+		}
+	}
+	if np.RemotePort != 0 || info.Domain == "" {
+		if err := proxy.Start(cc.server.config.BindAddr); err != nil {
+			if info.Domain != "" {
+				cc.server.unregisterEndpointRoute(info.Domain, proxy)
+			}
+			cc.logger.Error("failed to start proxy", "proxy", np.ProxyName, "error", err)
+			cc.sendProxyResp(np.ProxyName, false, 0, "", fmt.Sprintf("failed to listen: %v", err))
+			return
+		}
 	}
 
 	cc.proxiesMu.Lock()
@@ -140,12 +168,12 @@ func (cc *ClientConn) handleNewProxy(msg *protocol.Message) {
 	// Register in server's proxy map
 	cc.server.registerProxy(cc.clientID+"/"+np.ProxyName, proxy)
 
-	cc.sendProxyResp(np.ProxyName, true, proxy.RemotePort(), "")
-	cc.logger.Info("proxy registered", "proxy", np.ProxyName, "remotePort", proxy.RemotePort())
+	cc.sendProxyResp(np.ProxyName, true, proxy.RemotePort(), info.PublicURL, "")
+	cc.logger.Info("proxy registered", "proxy", np.ProxyName, "remotePort", proxy.RemotePort(), "domain", info.Domain, "publicURL", info.PublicURL)
 }
 
-func (cc *ClientConn) sendProxyResp(name string, success bool, port uint16, errMsg string) {
-	msg, err := protocol.NewNewProxyRespMessage(name, success, port, errMsg)
+func (cc *ClientConn) sendProxyResp(name string, success bool, port uint16, publicURL, errMsg string) {
+	msg, err := protocol.NewNewProxyRespMessageWithURL(name, success, port, publicURL, errMsg)
 	if err != nil {
 		cc.logger.Error("failed to create NewProxyResp", "error", err)
 		return
@@ -171,6 +199,7 @@ func (cc *ClientConn) handleCloseProxy(msg *protocol.Message) {
 	cc.proxiesMu.Unlock()
 
 	if ok {
+		cc.server.unregisterEndpointRoute(proxy.Snapshot().Domain, proxy)
 		proxy.Stop()
 		cc.server.unregisterProxy(cc.clientID + "/" + cp.ProxyName)
 		cc.logger.Info("proxy removed", "proxy", cp.ProxyName)
@@ -331,6 +360,7 @@ func (cc *ClientConn) cleanup() {
 	cc.proxiesMu.Unlock()
 
 	for name, proxy := range proxies {
+		cc.server.unregisterEndpointRoute(proxy.Snapshot().Domain, proxy)
 		proxy.Stop()
 		cc.server.unregisterProxy(cc.clientID + "/" + name)
 	}

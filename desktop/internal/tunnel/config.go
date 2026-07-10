@@ -21,9 +21,13 @@ type TunnelDef struct {
 	LocalAddr  string `json:"local_addr"`
 	RemotePort uint16 `json:"remote_port"`
 	// HTTP-specific fields
-	Domain     string `json:"domain,omitempty"`
-	HostHeader string `json:"host_header,omitempty"`
-	UseHTTPS   bool   `json:"use_https,omitempty"`
+	Domain         string `json:"domain,omitempty"`
+	HostHeader     string `json:"host_header,omitempty"`
+	UseHTTPS       bool   `json:"use_https,omitempty"`
+	PublicURL      string `json:"public_url,omitempty"`
+	AccessPolicyID string `json:"access_policy_id,omitempty"`
+	InspectEnabled bool   `json:"inspect_enabled,omitempty"`
+	ExpiresAt      string `json:"expires_at,omitempty"`
 	// P2P-specific fields (Phase 2)
 	P2PEnabled   bool   `json:"p2p_enabled,omitempty"`
 	PeerClientID string `json:"peer_client_id,omitempty"`

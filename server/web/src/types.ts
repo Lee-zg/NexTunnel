@@ -43,6 +43,12 @@ export interface ProxyInfo {
   proxy_type: string
   local_addr: string
   remote_port: number
+  domain?: string
+  host_header?: string
+  public_url?: string
+  access_policy_id?: string
+  inspect_enabled?: boolean
+  expires_at?: string
   status: string
   bytes_in: number
   bytes_out: number
@@ -69,6 +75,68 @@ export interface ClientSourceStatus {
 
 export interface ClientListResponse extends ClientSourceStatus {
   clients: ClientSnapshot[]
+}
+
+export interface RelayBackedListResponse<T> {
+  configured: boolean
+  available: boolean
+  error?: string
+  items: T[]
+}
+
+export interface EndpointInfo {
+  client_id: string
+  proxy_name: string
+  proxy_type: string
+  local_addr: string
+  remote_port: number
+  domain: string
+  host_header?: string
+  public_url: string
+  access_policy_id?: string
+  inspect_enabled: boolean
+  expires_at?: string
+  status: string
+  bytes_in: number
+  bytes_out: number
+  sessions: number
+}
+
+export interface EndpointPolicy {
+  id: string
+  name?: string
+  auth_mode: string
+  basic_username?: string
+  basic_password?: string
+  bearer_token?: string
+  allowed_ips?: string[]
+  denied_ips?: string[]
+  not_before?: string
+  not_after?: string
+  rate_limit_per_minute?: number
+  max_concurrent?: number
+  created_at?: string
+  updated_at?: string
+}
+
+export interface HTTPRequestLog {
+  id: string
+  timestamp: string
+  client_id?: string
+  proxy_name?: string
+  host: string
+  method: string
+  path: string
+  status_code: number
+  duration_ms: number
+  request_bytes: number
+  response_bytes: number
+  remote_addr: string
+  policy_id?: string
+  policy_result: string
+  reject_reason?: string
+  body_captured?: boolean
+  body_capture_size?: number
 }
 
 export interface ACLRuleView {

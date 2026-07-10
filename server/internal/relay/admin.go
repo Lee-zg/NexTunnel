@@ -1,12 +1,14 @@
 package relay
 
 import (
+	"bytes"
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,6 +42,11 @@ func (s *Server) startAdminAPI() error {
 	mux.HandleFunc("GET /api/v1/admin/health", s.handleAdminHealth)
 	mux.HandleFunc("GET /api/v1/admin/clients", s.handleAdminListClients)
 	mux.HandleFunc("DELETE /api/v1/admin/clients/{client_id}", s.handleAdminDisconnectClient)
+	mux.HandleFunc("GET /api/v1/admin/endpoints", s.handleAdminListEndpoints)
+	mux.HandleFunc("GET /api/v1/admin/endpoint-policies", s.handleAdminListEndpointPolicies)
+	mux.HandleFunc("POST /api/v1/admin/endpoint-policies", s.handleAdminUpsertEndpointPolicy)
+	mux.HandleFunc("DELETE /api/v1/admin/endpoint-policies/{id}", s.handleAdminDeleteEndpointPolicy)
+	mux.HandleFunc("GET /api/v1/admin/http-requests", s.handleAdminListHTTPRequestLogs)
 
 	s.adminListener = ln
 	s.adminServer = &http.Server{
@@ -84,6 +91,53 @@ func (s *Server) handleAdminDisconnectClient(w http.ResponseWriter, r *http.Requ
 	writeAdminJSON(w, http.StatusOK, map[string]string{"disconnected": clientID})
 }
 
+func (s *Server) handleAdminListEndpoints(w http.ResponseWriter, _ *http.Request) {
+	writeAdminJSON(w, http.StatusOK, s.ListEndpoints())
+}
+
+func (s *Server) handleAdminListEndpointPolicies(w http.ResponseWriter, _ *http.Request) {
+	writeAdminJSON(w, http.StatusOK, s.ListEndpointPolicies())
+}
+
+func (s *Server) handleAdminUpsertEndpointPolicy(w http.ResponseWriter, r *http.Request) {
+	var policy types.EndpointPolicy
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&policy); err != nil {
+		writeAdminError(w, http.StatusBadRequest, "invalid endpoint policy")
+		return
+	}
+	saved, err := s.UpsertEndpointPolicy(policy)
+	if err != nil {
+		writeAdminError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	// 敏感认证值只接受写入，不在 API 响应里回显。
+	saved.BasicPassword = ""
+	saved.BearerToken = ""
+	writeAdminJSON(w, http.StatusOK, saved)
+}
+
+func (s *Server) handleAdminDeleteEndpointPolicy(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := s.DeleteEndpointPolicy(id); err != nil {
+		writeAdminError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	writeAdminJSON(w, http.StatusOK, map[string]string{"deleted": id})
+}
+
+func (s *Server) handleAdminListHTTPRequestLogs(w http.ResponseWriter, r *http.Request) {
+	limit := 100
+	if rawLimit := strings.TrimSpace(r.URL.Query().Get("limit")); rawLimit != "" {
+		parsedLimit, err := strconv.Atoi(rawLimit)
+		if err != nil || parsedLimit <= 0 {
+			writeAdminError(w, http.StatusBadRequest, "invalid limit")
+			return
+		}
+		limit = parsedLimit
+	}
+	writeAdminJSON(w, http.StatusOK, s.ListHTTPRequestLogs(limit))
+}
+
 // ListClientSnapshots 返回当前在线客户端快照，按 client_id 排序以保证 Dashboard 展示稳定。
 func (s *Server) ListClientSnapshots() []ClientSnapshot {
 	s.clientsMu.RLock()
@@ -123,7 +177,13 @@ func (s *Server) DisconnectClient(clientID string) error {
 func writeAdminJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
+	var buffer bytes.Buffer
+	encoder := json.NewEncoder(&buffer)
+	if err := encoder.Encode(value); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_, _ = w.Write(buffer.Bytes())
 }
 
 func writeAdminError(w http.ResponseWriter, status int, message string) {

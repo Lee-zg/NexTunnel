@@ -10,16 +10,22 @@ import (
 
 // TunnelConfig represents a persisted tunnel configuration.
 type TunnelConfig struct {
-	ID         string    `json:"id"`
-	Name       string    `json:"name"`
-	ProxyType  string    `json:"proxy_type"`
-	LocalAddr  string    `json:"local_addr"`
-	LocalPort  int       `json:"local_port"`
-	RemotePort int       `json:"remote_port"`
-	ServerAddr string    `json:"server_addr"`
-	Status     string    `json:"status"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	ID             string    `json:"id"`
+	Name           string    `json:"name"`
+	ProxyType      string    `json:"proxy_type"`
+	LocalAddr      string    `json:"local_addr"`
+	LocalPort      int       `json:"local_port"`
+	RemotePort     int       `json:"remote_port"`
+	ServerAddr     string    `json:"server_addr"`
+	Domain         string    `json:"domain,omitempty"`
+	HostHeader     string    `json:"host_header,omitempty"`
+	PublicURL      string    `json:"public_url,omitempty"`
+	AccessPolicyID string    `json:"access_policy_id,omitempty"`
+	InspectEnabled bool      `json:"inspect_enabled,omitempty"`
+	ExpiresAt      string    `json:"expires_at,omitempty"`
+	Status         string    `json:"status"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 // FavoritePort 表示用户维护的常用本地代理端口。
@@ -76,9 +82,12 @@ func NewStore(db *DB) *Store {
 // Create inserts a new tunnel configuration.
 func (s *Store) Create(tc *TunnelConfig) error {
 	_, err := s.db.db.Exec(`
-		INSERT INTO tunnel_configs (id, name, proxy_type, local_addr, local_port, remote_port, server_addr, status)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		tc.ID, tc.Name, tc.ProxyType, tc.LocalAddr, tc.LocalPort, tc.RemotePort, tc.ServerAddr, tc.Status)
+		INSERT INTO tunnel_configs
+		    (id, name, proxy_type, local_addr, local_port, remote_port, server_addr,
+		     domain, host_header, public_url, access_policy_id, inspect_enabled, expires_at, status)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		tc.ID, tc.Name, tc.ProxyType, tc.LocalAddr, tc.LocalPort, tc.RemotePort, tc.ServerAddr,
+		tc.Domain, tc.HostHeader, tc.PublicURL, tc.AccessPolicyID, boolToInt(tc.InspectEnabled), tc.ExpiresAt, tc.Status)
 	if err != nil {
 		return fmt.Errorf("insert tunnel config: %w", err)
 	}
@@ -89,10 +98,13 @@ func (s *Store) Create(tc *TunnelConfig) error {
 func (s *Store) Get(id string) (*TunnelConfig, error) {
 	tc := &TunnelConfig{}
 	err := s.db.db.QueryRow(`
-		SELECT id, name, proxy_type, local_addr, local_port, remote_port, server_addr, status, created_at, updated_at
+		SELECT id, name, proxy_type, local_addr, local_port, remote_port, server_addr,
+		       domain, host_header, public_url, access_policy_id, inspect_enabled, expires_at,
+		       status, created_at, updated_at
 		FROM tunnel_configs WHERE id = ?`, id).Scan(
 		&tc.ID, &tc.Name, &tc.ProxyType, &tc.LocalAddr, &tc.LocalPort,
-		&tc.RemotePort, &tc.ServerAddr, &tc.Status, &tc.CreatedAt, &tc.UpdatedAt)
+		&tc.RemotePort, &tc.ServerAddr, &tc.Domain, &tc.HostHeader, &tc.PublicURL,
+		&tc.AccessPolicyID, scanBool(&tc.InspectEnabled), &tc.ExpiresAt, &tc.Status, &tc.CreatedAt, &tc.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -106,10 +118,13 @@ func (s *Store) Get(id string) (*TunnelConfig, error) {
 func (s *Store) GetByName(name string) (*TunnelConfig, error) {
 	tc := &TunnelConfig{}
 	err := s.db.db.QueryRow(`
-		SELECT id, name, proxy_type, local_addr, local_port, remote_port, server_addr, status, created_at, updated_at
+		SELECT id, name, proxy_type, local_addr, local_port, remote_port, server_addr,
+		       domain, host_header, public_url, access_policy_id, inspect_enabled, expires_at,
+		       status, created_at, updated_at
 		FROM tunnel_configs WHERE name = ?`, name).Scan(
 		&tc.ID, &tc.Name, &tc.ProxyType, &tc.LocalAddr, &tc.LocalPort,
-		&tc.RemotePort, &tc.ServerAddr, &tc.Status, &tc.CreatedAt, &tc.UpdatedAt)
+		&tc.RemotePort, &tc.ServerAddr, &tc.Domain, &tc.HostHeader, &tc.PublicURL,
+		&tc.AccessPolicyID, scanBool(&tc.InspectEnabled), &tc.ExpiresAt, &tc.Status, &tc.CreatedAt, &tc.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -122,7 +137,9 @@ func (s *Store) GetByName(name string) (*TunnelConfig, error) {
 // List returns all tunnel configurations.
 func (s *Store) List() ([]*TunnelConfig, error) {
 	rows, err := s.db.db.Query(`
-		SELECT id, name, proxy_type, local_addr, local_port, remote_port, server_addr, status, created_at, updated_at
+		SELECT id, name, proxy_type, local_addr, local_port, remote_port, server_addr,
+		       domain, host_header, public_url, access_policy_id, inspect_enabled, expires_at,
+		       status, created_at, updated_at
 		FROM tunnel_configs ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("list tunnel configs: %w", err)
@@ -133,7 +150,8 @@ func (s *Store) List() ([]*TunnelConfig, error) {
 	for rows.Next() {
 		tc := &TunnelConfig{}
 		if err := rows.Scan(&tc.ID, &tc.Name, &tc.ProxyType, &tc.LocalAddr, &tc.LocalPort,
-			&tc.RemotePort, &tc.ServerAddr, &tc.Status, &tc.CreatedAt, &tc.UpdatedAt); err != nil {
+			&tc.RemotePort, &tc.ServerAddr, &tc.Domain, &tc.HostHeader, &tc.PublicURL,
+			&tc.AccessPolicyID, scanBool(&tc.InspectEnabled), &tc.ExpiresAt, &tc.Status, &tc.CreatedAt, &tc.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan tunnel config: %w", err)
 		}
 		configs = append(configs, tc)
@@ -146,10 +164,12 @@ func (s *Store) Update(tc *TunnelConfig) error {
 	result, err := s.db.db.Exec(`
 		UPDATE tunnel_configs
 		SET name = ?, proxy_type = ?, local_addr = ?, local_port = ?, remote_port = ?,
-		    server_addr = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+		    server_addr = ?, domain = ?, host_header = ?, public_url = ?, access_policy_id = ?,
+		    inspect_enabled = ?, expires_at = ?, status = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?`,
 		tc.Name, tc.ProxyType, tc.LocalAddr, tc.LocalPort, tc.RemotePort,
-		tc.ServerAddr, tc.Status, tc.ID)
+		tc.ServerAddr, tc.Domain, tc.HostHeader, tc.PublicURL, tc.AccessPolicyID,
+		boolToInt(tc.InspectEnabled), tc.ExpiresAt, tc.Status, tc.ID)
 	if err != nil {
 		return fmt.Errorf("update tunnel config: %w", err)
 	}
@@ -165,6 +185,16 @@ func (s *Store) UpdateStatus(id, status string) error {
 	_, err := s.db.db.Exec(`
 		UPDATE tunnel_configs SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
 		status, id)
+	return err
+}
+
+// UpdateRuntimeEndpointFields 持久化 Relay 注册后回填的动态端口和公开 URL，保证桌面端重启后仍能展示最后一次可用入口。
+func (s *Store) UpdateRuntimeEndpointFields(id string, remotePort int, publicURL string) error {
+	_, err := s.db.db.Exec(`
+		UPDATE tunnel_configs
+		SET remote_port = ?, public_url = ?, updated_at = CURRENT_TIMESTAMP
+		WHERE id = ?`,
+		remotePort, publicURL, id)
 	return err
 }
 
@@ -477,4 +507,35 @@ func boolToInt(value bool) int {
 		return 1
 	}
 	return 0
+}
+
+type boolScanTarget struct {
+	value *bool
+}
+
+func scanBool(value *bool) boolScanTarget {
+	return boolScanTarget{value: value}
+}
+
+func (target boolScanTarget) Scan(src any) error {
+	if target.value == nil {
+		return nil
+	}
+	switch typed := src.(type) {
+	case nil:
+		*target.value = false
+	case bool:
+		*target.value = typed
+	case int64:
+		*target.value = typed != 0
+	case int:
+		*target.value = typed != 0
+	case []byte:
+		*target.value = string(typed) == "1" || strings.EqualFold(string(typed), "true")
+	case string:
+		*target.value = typed == "1" || strings.EqualFold(typed, "true")
+	default:
+		return fmt.Errorf("unsupported bool scan type %T", src)
+	}
+	return nil
 }

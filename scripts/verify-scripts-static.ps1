@@ -203,20 +203,20 @@ $parameterContracts = @(
   @{
     Script = "scripts/package-cli.ps1"
     Parameters = @(
-      @{ Name = "Version"; Type = "String"; Default = "v0.6.5-alpha" }
+      @{ Name = "Version"; Type = "String"; Default = "v0.7.0-beta" }
     )
   },
   @{
     Script = "scripts/package-server.ps1"
     Parameters = @(
-      @{ Name = "Version"; Type = "String"; Default = "v0.6.5-alpha" },
+      @{ Name = "Version"; Type = "String"; Default = "v0.7.0-beta" },
       @{ Name = "SkipWeb"; Type = "SwitchParameter" }
     )
   },
   @{
     Script = "scripts/package-desktop.ps1"
     Parameters = @(
-      @{ Name = "Version"; Type = "String"; Default = "v0.6.5-alpha" },
+      @{ Name = "Version"; Type = "String"; Default = "v0.7.0-beta" },
       @{ Name = "Platform"; Type = "String"; Default = "windows/amd64" },
       @{ Name = "WintunMode"; Type = "String"; Default = "bundled" },
       @{ Name = "WintunDllPath"; Type = "String" },
@@ -239,6 +239,22 @@ $parameterContracts = @(
     Parameters = @(
       @{ Name = "SshHost"; Type = "String"; Mandatory = $true },
       @{ Name = "ReportPath"; Type = "String"; Default = "dist/verification/dashboard-ssh-latest.json" }
+    )
+  },
+  @{
+    Script = "scripts/verify-public-endpoint.ps1"
+    Parameters = @(
+      @{ Name = "GatewayUrl"; Type = "String"; Mandatory = $true },
+      @{ Name = "HostHeader"; Type = "String"; Default = "" },
+      @{ Name = "ExpectedContains"; Type = "String"; Default = "" },
+      @{ Name = "BasicUsername"; Type = "String"; Default = "" },
+      @{ Name = "BasicPassword"; Type = "String"; Default = "" },
+      @{ Name = "BearerToken"; Type = "String"; Default = "" },
+      @{ Name = "DashboardUrl"; Type = "String"; Default = "" },
+      @{ Name = "DashboardToken"; Type = "String"; Default = "" },
+      @{ Name = "RequestLogLimit"; Type = "Int32"; Default = "20" },
+      @{ Name = "ReportPath"; Type = "String"; Default = "dist/verification/public-endpoint-latest.json" },
+      @{ Name = "AllowInsecureHttpCredentials"; Type = "SwitchParameter" }
     )
   },
   @{
