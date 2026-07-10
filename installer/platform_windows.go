@@ -16,7 +16,20 @@ import (
 )
 
 const (
-	uninstallRegistryKey = `Software\Microsoft\Windows\CurrentVersion\Uninstall\NexTunnel`
+	uninstallRegistryKey             = `Software\Microsoft\Windows\CurrentVersion\Uninstall\NexTunnel`
+	directoryRemovalPowerShellScript = `$targetPath = [Environment]::GetEnvironmentVariable('NEXTUNNEL_REMOVE_TARGET')
+$currentPidText = [Environment]::GetEnvironmentVariable('NEXTUNNEL_REMOVE_PID')
+$currentPid = 0
+if ([string]::IsNullOrWhiteSpace($targetPath) -or -not [int]::TryParse($currentPidText, [ref]$currentPid)) {
+  exit 2
+}
+Start-Sleep -Seconds 2
+try {
+  $process = Get-Process -Id $currentPid -ErrorAction SilentlyContinue
+  if ($process) { Wait-Process -Id $currentPid -Timeout 20 -ErrorAction SilentlyContinue }
+} catch {}
+
+Remove-Item -LiteralPath $targetPath -Recurse -Force -ErrorAction SilentlyContinue`
 )
 
 type windowsPlatform struct{}
@@ -179,23 +192,7 @@ func (windowsPlatform) ShowFatalMessage(title string, message string) {
 }
 
 func createWindowsShortcut(shortcutPath string, targetPath string, workingDir string, description string) error {
-	if err := os.MkdirAll(filepath.Dir(shortcutPath), 0o755); err != nil {
-		return fmt.Errorf("创建快捷方式目录：%w", err)
-	}
-	script := `param($ShortcutPath,$TargetPath,$WorkingDirectory,$Description)
-$shell = New-Object -ComObject WScript.Shell
-$shortcut = $shell.CreateShortcut($ShortcutPath)
-$shortcut.TargetPath = $TargetPath
-$shortcut.WorkingDirectory = $WorkingDirectory
-$shortcut.Description = $Description
-$shortcut.IconLocation = $TargetPath
-$shortcut.Save()`
-	command := exec.Command("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script, shortcutPath, targetPath, workingDir, description)
-	output, err := command.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("创建快捷方式 %s: %s: %w", shortcutPath, decodeWindowsCommandOutput(output), err)
-	}
-	return nil
+	return createShellLink(shortcutPath, targetPath, workingDir, description)
 }
 
 func isTaskkillProcessNotFound(output string) bool {
@@ -207,14 +204,12 @@ func isTaskkillProcessNotFound(output string) bool {
 }
 
 func scheduleDirectoryRemoval(path string) error {
-	script := `param($TargetPath,$CurrentPid)
-Start-Sleep -Seconds 2
-try {
-  $process = Get-Process -Id $CurrentPid -ErrorAction SilentlyContinue
-  if ($process) { Wait-Process -Id $CurrentPid -Timeout 20 -ErrorAction SilentlyContinue }
-} catch {}
-Remove-Item -LiteralPath $TargetPath -Recurse -Force -ErrorAction SilentlyContinue`
-	command := exec.Command("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-Command", script, path, strconv.Itoa(os.Getpid()))
+	command := newEncodedPowerShellCommand(directoryRemovalPowerShellScript, true)
+	// 路径不进入脚本文本，避免空格、引号等字符改变 PowerShell 语法。
+	command.Env = append(os.Environ(),
+		"NEXTUNNEL_REMOVE_TARGET="+path,
+		"NEXTUNNEL_REMOVE_PID="+strconv.Itoa(os.Getpid()),
+	)
 	return command.Start()
 }
 

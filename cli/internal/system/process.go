@@ -88,11 +88,11 @@ func TailServerLogs(paths Paths, follow bool) error {
 			filepath.Join(paths.LogDir, "nat-detector.log"),
 			filepath.Join(paths.LogDir, "dashboard.log"),
 		}
-		args := append([]string{"-NoProfile", "-Command", "Get-Content -Tail 200"}, files...)
-		if follow {
-			args = append(args, "-Wait")
+		command, err := newWindowsTailLogsCommand(files, follow)
+		if err != nil {
+			return err
 		}
-		return runCommand("powershell", args...)
+		return runConfiguredCommand(command)
 	}
 	args := []string{"-n", "200"}
 	if follow {
@@ -254,11 +254,14 @@ func linuxServiceName(prefix, component string) string {
 }
 
 func runCommand(name string, args ...string) error {
-	cmd := exec.Command(name, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-	return cmd.Run()
+	return runConfiguredCommand(exec.Command(name, args...))
+}
+
+func runConfiguredCommand(command *exec.Cmd) error {
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	command.Stdin = os.Stdin
+	return command.Run()
 }
 
 func readPID(path string) (int, bool) {
