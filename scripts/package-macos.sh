@@ -150,7 +150,7 @@ require_env_vars() {
 }
 
 preflight_tools_and_secrets() {
-  local base_tools=(go npm wails hdiutil shasum awk)
+  local base_tools=(go npm wails hdiutil shasum awk codesign)
   if [[ "$TARGET_ARCH" == "universal" ]]; then
     base_tools+=(lipo)
   fi
@@ -158,7 +158,7 @@ preflight_tools_and_secrets() {
     base_tools+=(pkgbuild)
   fi
   if [[ "$SIGN" == "true" ]]; then
-    base_tools+=(codesign pkgutil spctl)
+    base_tools+=(pkgutil spctl)
     require_env_vars MACOS_DEVELOPER_ID_APPLICATION
     if [[ "$BUILD_PKG" == "true" ]]; then
       require_env_vars MACOS_DEVELOPER_ID_INSTALLER
@@ -388,6 +388,12 @@ if [[ "$SIGN" == "true" ]]; then
   verify_code_signature "$HELPER_TARGET" "nextunnel-helper"
   verify_code_signature "$HELPER_RESOURCE_TARGET" "NexTunnel.app 内置 nextunnel-helper"
   verify_code_signature "$APP_TARGET" "NexTunnel.app"
+else
+  # Wails 生成的 App 已带临时签名；注入 helper 后必须重建资源清单，否则 Gatekeeper 会误报应用已损坏。
+  codesign --force --sign - "$HELPER_RESOURCE_TARGET"
+  codesign --force --sign - "$APP_TARGET"
+  verify_code_signature "$HELPER_RESOURCE_TARGET" "NexTunnel.app 内置 nextunnel-helper（临时签名）"
+  verify_code_signature "$APP_TARGET" "NexTunnel.app（临时签名）"
 fi
 
 cp -R "$APP_TARGET" "$DMG_STAGING/NexTunnel.app"

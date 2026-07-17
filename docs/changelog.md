@@ -1,5 +1,9 @@
 # 更新日志
 
+## 未发布
+
+- 修复 macOS unsigned DMG 在注入内置 Helper 后未重建 App 临时签名，导致 Gatekeeper 提示应用“已损坏”的问题。
+
 ## v0.7.0-beta
 
 - Public Endpoint 主路径进入 Beta：Relay 新增按 Host 路由的 Public HTTP Gateway，支持 `domain_suffix`、子域名冲突校验、`host_header` 和 `public_url` 返回，旧 TCP 隧道继续保持远端端口模型。

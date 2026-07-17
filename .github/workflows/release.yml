@@ -198,6 +198,19 @@ jobs:
             bash scripts/package-macos.sh --version "$RELEASE_VERSION" --skip-pkg
           fi
 
+      - name: Verify packaged macOS application integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          dmg_path="dist/nextunnel-${RELEASE_VERSION}-darwin-universal.dmg"
+          mount_point="$RUNNER_TEMP/nextunnel-dmg"
+          mkdir -p "$mount_point"
+          # 同时校验 DMG 容器和包内 App，避免注入资源后签名清单失效却仍被发布。
+          hdiutil verify "$dmg_path"
+          hdiutil attach -readonly -nobrowse -mountpoint "$mount_point" "$dmg_path"
+          trap 'hdiutil detach "$mount_point" >/dev/null 2>&1 || true' EXIT
+          codesign --verify --deep --strict --verbose=2 "$mount_point/NexTunnel.app"
+
       - name: Delete signing keychain
         if: always() && steps.macos-signing.outputs.signing_enabled == 'true'
         shell: bash
